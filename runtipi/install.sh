@@ -8,7 +8,7 @@ echo ""
 CURRENT_IP=$(hostname -I | awk '{print $1}')
 
 # Define Runtipi installation path
-RUNTIPI_PATH="/root/runtipi"
+RUNTIPI_PATH="/opt/runtipi"
 
 # Generate a path for a log file to output into for debugging
 LOGPATH=$(realpath "runtipi_install_$(date +%s).log")
@@ -21,6 +21,11 @@ function run_install_dependencies() {
 
 # Install Runtipi
 function run_install_runtipi() {
+    if [[ -d "$RUNTIPI_PATH" ]]; then
+        echo "Runtipi is already installed at $RUNTIPI_PATH."
+    fi
+    # CD into the Runtipi directory
+    cd /opt
     # Download the script first
     curl -L -o runtipi_install.sh https://setup.runtipi.io
     # Execute the script
