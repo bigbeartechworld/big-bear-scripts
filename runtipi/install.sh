@@ -25,12 +25,14 @@ function run_install_dependencies() {
 function run_install_runtipi() {
     # Check if Runtipi is already installed
     if [[ -d "$RUNTIPI_PATH" ]]; then
+        echo "Runtipi is already installed at $RUNTIPI_PATH."
         error_out "Runtipi is already installed at $RUNTIPI_PATH."
     fi
 
     # Check if Runtipi container is running
     if command -v docker &> /dev/null; then
         if docker ps | grep -q "runtipi"; then
+            echo "Runtipi is already running in a docker container."
             error_out "Runtipi is already running in a docker container."
         fi
     fi
