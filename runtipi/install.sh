@@ -74,7 +74,7 @@ function info_msg() {
   echo "$1" | tee -a "$LOGPATH"
 }
 
-info_msg "1/7 Installing dependencies..."
+info_msg "[1/7] Installing dependencies..."
 run_install_dependencies >> "$LOGPATH" 2>&1
 
 info_msg "[2/7] Installing Runtipi... (This may take several minutes)"
