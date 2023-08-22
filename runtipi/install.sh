@@ -13,6 +13,8 @@ RUNTIPI_PATH="/opt/runtipi"
 # Generate a path for a log file to output into for debugging
 LOGPATH=$(realpath "runtipi_install_$(date +%s).log")
 
+echo "If there is an error, please check the log file at $LOGPATH"
+
 # Install dependencies
 function run_install_dependencies() {
     sudo apt-get update
@@ -27,16 +29,22 @@ function run_install_runtipi() {
     fi
 
     # Check if Runtipi container is running
-    if docker ps | grep -q "runtipi"; then
-        error_out "Runtipi container is running."
+    if command -v docker &> /dev/null; then
+        if docker ps | grep -q "runtipi"; then
+            error_out "Runtipi container is running."
+        fi
     fi
 
     # CD into the Runtipi directory
-    cd /opt
+    cd /opt || error_out "Failed to change to /opt directory. Check permissions."
     # Download the script first
-    curl -L -o runtipi_install.sh https://setup.runtipi.io
+    curl -L -o runtipi_install.sh https://setup.runtipi.io || error_out "Failed to download Runtipi installation script."
+    # Provide feedback to user
+    echo "Installing Runtipi, please wait..."
     # Execute the script
     bash runtipi_install.sh || error_out "Failed to install Runtipi."
+    # Cleanup
+    rm runtipi_install.sh
 }
 
 # Create the systemd service file
