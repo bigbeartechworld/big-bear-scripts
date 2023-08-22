@@ -14,6 +14,7 @@ RUNTIPI_PATH="/opt/runtipi"
 LOGPATH=$(realpath "runtipi_install_$(date +%s).log")
 
 echo "If there is an error, please check the log file at $LOGPATH"
+echo ""
 
 # Install dependencies
 function run_install_dependencies() {
