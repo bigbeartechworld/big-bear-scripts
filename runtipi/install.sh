@@ -31,7 +31,7 @@ function run_install_runtipi() {
     # Check if Runtipi container is running
     if command -v docker &> /dev/null; then
         if docker ps | grep -q "runtipi"; then
-            error_out "Runtipi container is running."
+            error_out "Runtipi is already running in a docker container."
         fi
     fi
 
