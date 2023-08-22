@@ -1,9 +1,5 @@
 #!/bin/bash
 
-echo "This script installs a new Runtipi instance on a fresh Ubuntu server."
-echo "This script does not ensure system security."
-echo ""
-
 # Get the IP address
 CURRENT_IP=$(hostname -I | awk '{print $1}')
 
@@ -13,7 +9,11 @@ RUNTIPI_PATH="/opt/runtipi"
 # Generate a path for a log file to output into for debugging
 LOGPATH=$(realpath "runtipi_install_$(date +%s).log")
 
-echo "If there is an error, please check the log file at $LOGPATH"
+echo "This script installs a new Runtipi instance on a fresh Ubuntu server."
+echo "This script does not ensure system security."
+echo ""
+
+echo "If there is an error, please check the log file at: $LOGPATH"
 echo ""
 
 # Install dependencies
