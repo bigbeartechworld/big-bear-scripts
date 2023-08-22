@@ -11,7 +11,7 @@ CURRENT_IP=$(hostname -I | awk '{print $1}')
 RUNTIPI_PATH="/opt/runtipi"
 
 # Generate a path for a log file to output into for debugging
-LOGPATH=$(realpath "runtipi_install_$(date +%s).log")
+LOGPATH=$(realpath "/runtipi_logs/runtipi_install_$(date +%s).log")
 
 echo "If there is an error, please check the log file at $LOGPATH"
 echo ""
