@@ -11,6 +11,14 @@ echo "Current DNS server: $current_dns_server"
 read -p "Enter new DNS server IP (default is 1.1.1.1): " dns_server
 dns_server=${dns_server:-1.1.1.1}
 
+# Check if the provided DNS server resolves correctly
+if nslookup bigbeartechworld.com "$dns_server" &> /dev/null; then
+    echo "$dns_server can resolve correctly."
+else
+    echo "$dns_server cannot resolve. Exiting without making changes."
+    exit 1
+fi
+
 # Backup the original resolv.conf file
 cp "$resolv_conf" "$resolv_conf.bak"
 
