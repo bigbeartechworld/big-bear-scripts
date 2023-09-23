@@ -12,5 +12,5 @@ This shell script is designed to set up a root password and enable SSH root logi
 ## How to use?
 
 ```bash
-bash -c "$(wget -qLO - https://raw.githubusercontent.com/bigbeartechworld/big-bear-scripts/master/enable-ssh-on-pve-lxc/disable_dns_service.sh)"
+bash -c "$(wget -qLO - https://raw.githubusercontent.com/bigbeartechworld/big-bear-scripts/master/enable-ssh-on-pve-lxc/run.sh)"
 ```
