@@ -1,6 +1,12 @@
 #!/bin/bash
 # This script allows the user to reset their CasaOS username and password.
 
+# Check if the casaos.service is active
+if ! systemctl is-active --quiet casaos.service; then
+    echo "CasaOS service is not active. Exiting."
+    exit 1
+fi
+
 # Prompt user for confirmation
 read -p "Do you want to reset your CasaOS username and password? (y/n): " response
 
