@@ -10,10 +10,10 @@ if ! [[ "$new_port" =~ ^[0-9]+$ ]]; then
 fi
 
 # Backup the original configuration file
-cp /etc/casaos/gateway.conf /etc/casaos/gateway.conf.bak
+cp /etc/casaos/gateway.ini /etc/casaos/gateway.ini.bak
 
 # Change the port number in the configuration file
-sed -i "s/^port=[0-9]\+/port=$new_port/" /etc/casaos/gateway.conf
+sed -i "s/^port=[0-9]\+/port=$new_port/" /etc/casaos/gateway.ini
 
 # Restart the CasaOS Gateway service
 systemctl restart casaos-gateway.service
