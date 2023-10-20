@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # Prompt the user for the file path or use the default
-read -p "Enter the file path to save the configuration (default: /DATA/AppData/big-bear-adguard/data/conf): " file_path
-file_path=${file_path:-"/DATA/AppData/big-bear-adguard/data/conf"}
+read -p "Enter the file path to save the configuration (default: /DATA/AppData/big-bear-adguard-home/data/conf): " file_path
+file_path=${file_path:-"/DATA/AppData/big-bear-adguard-home/data/conf"}
 
 # Create the directory if it does not exist
-mkdir -p /DATA/AppData/big-bear-adguard/data/conf
+mkdir -p /DATA/AppData/big-bear-adguard-home/data/conf
 
 # Define the configuration data
 config_data=$(cat <<EOF
