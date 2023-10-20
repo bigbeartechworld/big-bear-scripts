@@ -4,6 +4,9 @@
 read -p "Enter the file path to save the configuration (default: /DATA/AppData/big-bear-adguard/data/conf): " file_path
 file_path=${file_path:-"/DATA/AppData/big-bear-adguard/data/conf"}
 
+# Create the directory if it does not exist
+mkdir -p /DATA/AppData/big-bear-adguard/data/conf
+
 # Define the configuration data
 config_data=$(cat <<EOF
 bind_host: 0.0.0.0
@@ -141,6 +144,6 @@ EOF
 )
 
 # Write the configuration data to the chosen file path
-echo "$config_data" > "$file_path"
+echo "$config_data" > "$file_path/AdGuardHome.yaml"
 
-echo "Configuration file generated and saved to $file_path"
+echo "Configuration file generated and saved to $file_path/AdGuardHome.yaml"
