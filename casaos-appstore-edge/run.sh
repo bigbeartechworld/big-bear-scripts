@@ -3,7 +3,7 @@
 # Function to install Edge Appstore
 install_edge_appstore() {
     # Unregister the Official CasaOS Appstore
-    echo "Unregistering CasaOS Edge Appstore..."
+    echo "Unregistering Official CasaOS Appstore..."
     casaos-cli app-management unregister app-store 0
 
     # Register the Edge Appstore
