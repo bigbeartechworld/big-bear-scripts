@@ -12,7 +12,7 @@ passwd root
 
 # Enable SSH root login
 echo "Enabling SSH for root..."
-sed -i 's/PermitRootLogin without-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+sed -i -e 's/^#\s*PermitRootLogin.*/PermitRootLogin yes/' -e 's/^\s*PermitRootLogin no/PermitRootLogin yes/' /etc/ssh/sshd_config
 
 # Restart the SSH service
 echo "Restarting SSH service..."
