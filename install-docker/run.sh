@@ -59,4 +59,14 @@ sudo apt-get install -y docker-ce docker-ce-cli containerd.io
 echo "Verifying Docker installation..."
 sudo docker run hello-world
 
+# Ask if the user wants to install Docker Compose
+if confirm "Do you want to install Docker Compose?"; then
+    echo "Installing Docker Compose..."
+    sudo curl -L "https://github.com/docker/compose/releases/download/v2.6.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    sudo chmod +x /usr/local/bin/docker-compose
+    echo "Docker Compose installed successfully."
+else
+    echo "Skipping Docker Compose installation."
+fi
+
 echo "Docker installation completed successfully!"
