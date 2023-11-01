@@ -2,6 +2,9 @@
 
 # Function to install Edge Appstore
 installEdgeAppstore() {
+    # Register the big-bear-casaos Appstore
+    casaos-cli app-management register app-store https://github.com/bigbeartechworld/big-bear-casaos/archive/refs/heads/master.zip
+
     # Unregister the Official CasaOS Appstore
     casaos-cli app-management unregister app-store 0
 
