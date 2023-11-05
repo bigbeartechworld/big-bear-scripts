@@ -13,11 +13,11 @@ combine_container_info() {
     fi
 }
 
-# Fetch all running container info
+# Fetch all containers info, including those that are not running
 CONTAINERS=()
 while IFS= read -r line; do
     CONTAINERS+=("$line")
-done < <(docker ps --format "{{.ID}}|{{.Names}}|{{.Image}}" | while IFS="|" read -r id name image; do
+done < <(docker ps -a --format "{{.ID}}|{{.Names}}|{{.Image}}" | while IFS="|" read -r id name image; do
     combine_container_info "$id" "$name" "$image"
 done)
 
