@@ -176,8 +176,11 @@ for DIR in $BASE_DIR/*/; do
             RESULT=$?
             if [[ $RESULT -eq 1 ]]; then
                 echo "Current tag for $IMAGE_NAME is $CURRENT_TAG. Newer numeric tags available:"
-                select TAG in $NUMERIC_TAGS; do
-                    if [[ -n $TAG ]]; then
+                select TAG in $NUMERIC_TAGS "Skip and proceed to next container"; do
+                    if [[ $TAG == "Skip and proceed to next container" ]]; then
+                        echo "Skipping $IMAGE_NAME and proceeding to next container..."
+                        break # Breaks the select loop and continues with the next iteration of the for loop
+                    elif [[ -n $TAG ]]; then
                         yq eval -i ".services.*.image = \"$IMAGE_NAME:$TAG\"" $FILE
                         echo "Updated $FILE with tag $TAG"
 
@@ -194,5 +197,4 @@ for DIR in $BASE_DIR/*/; do
             fi
         fi
     fi
-
 done
