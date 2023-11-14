@@ -28,6 +28,12 @@ if [ -z "$host_path" ]; then
     host_path="/DATA/AppData/big-bear-traccar/traccar.xml"
 fi
 
+# Extract the directory part from the provided path
+host_dir=$(dirname "$host_path")
+
+# Create the directory if it does not exist
+mkdir -p "$host_dir"
+
 # If the directory exists, ask the user if they want to remove it.
 # Otherwise, exit without removing the directory.
 if [ -d "$host_path" ]; then

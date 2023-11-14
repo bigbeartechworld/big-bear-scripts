@@ -28,6 +28,12 @@ if [ -z "$host_path" ]; then
     host_path="/DATA/AppData/traccar/traccar.xml"
 fi
 
+# Extract the directory part from the provided path
+host_dir=$(dirname "$host_path")
+
+# Create the directory if it does not exist
+mkdir -p "$host_dir"
+
 # Check if the specified path is a directory.
 if [ -d "$host_path" ]; then
     echo "Error: $host_path is a directory."
