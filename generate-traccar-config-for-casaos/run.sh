@@ -20,15 +20,16 @@ fi
 echo "Using Docker tag: $docker_tag"
 
 # Ask the user where to save the configuration on the host.
-echo "Where would you like to save the traccar.xml on the host? (Default: /DATA/AppData/traccar/traccar.xml)"
+echo "Where would you like to save the traccar.xml on the host? (Default: /DATA/AppData/big-bear-traccar/traccar.xml)"
 read host_path
 
-# If no path is provided, default to /DATA/AppData/traccar/traccar.xml.
+# If no path is provided, default to /DATA/AppData/big-bear-traccar/traccar.xml.
 if [ -z "$host_path" ]; then
     host_path="/DATA/AppData/big-bear-traccar/traccar.xml"
 fi
 
-# Check if the specified path is a directory.
+# If the directory exists, ask the user if they want to remove it.
+# Otherwise, exit without removing the directory.
 if [ -d "$host_path" ]; then
     echo "Error: $host_path is a directory."
     echo "Do you want to remove this directory? (yes/no)"
