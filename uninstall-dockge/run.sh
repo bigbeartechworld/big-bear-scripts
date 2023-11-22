@@ -15,6 +15,40 @@ confirm_action() {
     fi
 }
 
+# Function to uninstall Docker or Podman
+uninstall_docker_podman() {
+    if command -v docker &> /dev/null; then
+        # Uninstall Docker CE
+        echo "Uninstalling Docker CE..."
+        apt-get remove --purge docker-ce docker-ce-cli containerd.io
+        rm -rf /var/lib/docker
+        echo "Docker CE has been uninstalled."
+    elif command -v podman &> /dev/null; then
+        # Uninstall Podman
+        echo "Uninstalling Podman..."
+        apt-get remove --purge podman
+        echo "Podman has been uninstalled."
+    else
+        echo "Neither Docker CE nor Podman is installed."
+    fi
+}
+
+# Ask the user if they want to uninstall Docker CE or Podman
+read -r -p "Do you want to uninstall Docker CE or Podman? (docker/podman/none): " uninstall_choice
+case $uninstall_choice in
+    docker|podman)
+        confirm_action "You have chosen to uninstall $uninstall_choice. This will remove all related packages and data."
+        uninstall_docker_podman
+        ;;
+    none)
+        echo "Skipping uninstallation of Docker CE/Podman."
+        ;;
+    *)
+        echo "Invalid choice. Exiting."
+        exit 1
+        ;;
+esac
+
 # Stop and remove the Dockge containers
 if command -v docker &> /dev/null; then
     # Using Docker CE
