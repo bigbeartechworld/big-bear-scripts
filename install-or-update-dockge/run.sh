@@ -31,7 +31,7 @@ if [ "$DOCKER_INSTALLED" = false ] && [ "$PODMAN_INSTALLED" = false ]; then
         rm get-docker.sh
         systemctl start docker
         systemctl enable docker
-        $DOCKER_INSTALLED=true
+        DOCKER_INSTALLED=true
     else
         read -p "Do you want to install Podman (y/n)? " INSTALL_PODMAN
 
@@ -39,7 +39,7 @@ if [ "$DOCKER_INSTALLED" = false ] && [ "$PODMAN_INSTALLED" = false ]; then
             # Install Podman
             apt-get update
             apt-get install -y podman
-            $PODMAN_INSTALLED=true
+            PODMAN_INSTALLED=true
         else
             echo "Please install Docker CE or Podman manually to proceed."
             exit 1
