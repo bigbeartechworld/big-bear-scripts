@@ -5,6 +5,36 @@ CONFIG_FILE="/etc/casaos/gateway.ini"
 # Prefix for casaos services
 SERVICE_PREFIX="casaos"
 
+# Display Welcome
+echo "-------------------"
+echo "BigBearCasaOS Healthcheck"
+echo "-------------------"
+echo "Here is some links"
+echo "https://community.bigbeartechworld.com"
+echo "https://github.com/BigBearTechWorld"
+echo "-------------------"
+echo "If you would like to support me, please consider buying me a tea"
+echo "https://ko-fi.com/bigbeartechworld"
+echo ""
+
+# Display system information
+echo "-------------------"
+echo "System Information:"
+echo "-------------------"
+echo "Operating System: $(lsb_release -d | cut -f 2-)"
+echo "Kernel: $(uname -r)"
+echo "Uptime: $(uptime -p)"
+echo "Packages: $(dpkg -l | wc -l)"
+echo "Shell: $SHELL"
+echo "Terminal: $(basename $TERM)"
+echo "CPU: $(lscpu | grep 'Model name' | cut -d ':' -f 2 | xargs)"
+echo "GPU: $(lspci | grep -i --color 'vga\|3d\|2d')"
+echo "Memory: $(free -h | grep Mem | awk '{print $2}') Total, $(free -h | grep Mem | awk '{print $3}') Used"
+echo ""
+echo "-------------------"
+echo "CasaOS Healthcheck:"
+echo "-------------------"
+
 # Check if the configuration file exists
 if [[ -f $CONFIG_FILE ]]; then
     # Get the port from the configuration file
