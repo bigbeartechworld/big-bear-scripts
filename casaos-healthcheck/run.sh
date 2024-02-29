@@ -58,7 +58,7 @@ else
 fi
 
 # Get a list of all casaos services
-SERVICES=$(systemctl list-units --type=service | grep "$SERVICE_PREFIX" | awk '{print $1}' | grep -v '[^ -~]')
+SERVICES=$(systemctl list-units --type=service | grep "$SERVICE_PREFIX" | sed 's/^[[:space:]]*●[[:space:]]*//' | grep -oP '\S+\.service')
 
 # Check if any services were found
 if [[ -z "$SERVICES" ]]; then
