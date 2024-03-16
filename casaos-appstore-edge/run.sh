@@ -9,7 +9,7 @@ installEdgeAppstore() {
     casaos-cli app-management unregister app-store 0
 
     # Register the Edge Appstore
-    casaos-cli app-management register app-store https://github.com/WisdomSky/CasaOS-AppStore-Edge/archive/refs/heads/main.zip
+    casaos-cli app-management register app-store https://casaos-appstore.paodayag.dev/edge.zip
 }
 
 # Function to revert to the Official Appstore
