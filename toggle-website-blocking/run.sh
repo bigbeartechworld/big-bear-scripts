@@ -24,10 +24,10 @@ else
     # Create a default settings.conf file if it doesn't exist
     cat <<EOL > "$SETTINGS_FILE"
 HOSTS_FILE="/etc/hosts"
-CONFIG_FILE="blocked_websites.conf"
+CONFIG_FILE="$CURRENT_DIR/blocked_websites.conf"
 DEFAULT_RESOLVER="127.0.0.1"
-START_MARKER="# START Blocking Websites by BigBearTechWorld"
-END_MARKER="# END Blocking Websites by BigBearTechWorld"
+START_MARKER="# START blocked_websites by BigBearTechWorld"
+END_MARKER="# END blocked_websites by BigBearTechWorld"
 BACKUP_DIR="/tmp"
 EOL
     # Load the newly created settings.conf file
@@ -75,19 +75,15 @@ fi
 # Function to read entries from the configuration file
 read_entries() {
     if [[ -f $CONFIG_FILE ]]; then
-        HOSTS_ENTRIES=()
-        # Read each line in the configuration file
-        while IFS= read -r line; do
-            # Skip comments and empty lines
-            [[ $line =~ ^#.*$ || -z $line ]] && continue
+        HOSTS_ENTRIES=()  # Initialize an empty array to store host entries
+        while IFS= read -r line; do  # Read each line from the configuration file
+            [[ $line =~ ^#.*$ || -z $line ]] && continue  # Skip comments and empty lines
             if [[ $line == $DEFAULT_RESOLVER* ]]; then
-                # If the line starts with the default resolver, add it directly
-                HOSTS_ENTRIES+=("$line")
-                domain=$(echo "$line" | awk '{print $2}')
+                HOSTS_ENTRIES+=("$line")  # If line starts with the default resolver, add it directly
+                domain=$(echo "$line" | awk '{print $2}')  # Extract the domain name
             else
-                # Otherwise, prepend the default resolver
-                HOSTS_ENTRIES+=("$DEFAULT_RESOLVER $line")
-                domain=$line
+                HOSTS_ENTRIES+=("$DEFAULT_RESOLVER $line")  # Prepend the default resolver
+                domain=$line  # Set the domain to the current line
             fi
             # Add www. prefix if not already present
             if [[ $domain != www.* && $domain != $DEFAULT_RESOLVER* ]]; then
@@ -95,7 +91,6 @@ read_entries() {
             fi
         done < "$CONFIG_FILE"
     else
-        # Print an error message and exit if the configuration file is not found
         echo "Configuration file $CONFIG_FILE not found."
         exit 1
     fi
@@ -103,51 +98,48 @@ read_entries() {
 
 # Function to create a backup of the hosts file
 backup_hosts_file() {
-    BACKUP_FILE="$BACKUP_DIR/hosts_backup_$(date +%s)"
-    sudo cp "$HOSTS_FILE" "$BACKUP_FILE"
-    echo "Backup of hosts file created at $BACKUP_FILE"
+    BACKUP_FILE="$BACKUP_DIR/hosts_backup_$(date +%s)"  # Set the backup file name with a timestamp
+    sudo cp "$HOSTS_FILE" "$BACKUP_FILE"  # Copy the current hosts file to the backup location
+    echo "Backup of hosts file created at $BACKUP_FILE"  # Inform the user about the backup location
 }
 
 # Function to add entries to /etc/hosts
 add_entries() {
     {
-        echo "$START_MARKER"
-        for entry in "${HOSTS_ENTRIES[@]}"; do
-            echo "$entry"
+        echo "$START_MARKER"  # Add the start marker
+        for entry in "${HOSTS_ENTRIES[@]}"; do  # Iterate over each entry
+            echo "$entry"  # Add each entry
         done
-        echo "$END_MARKER"
-    } | sudo tee -a "$HOSTS_FILE" > /dev/null
-    echo "Entries added."
+        echo "$END_MARKER"  # Add the end marker
+    } | sudo tee -a "$HOSTS_FILE" > /dev/null  # Append entries to the hosts file
+    echo "Entries added."  # Inform the user that entries have been added
 }
 
 # Function to remove entries from /etc/hosts
 remove_entries() {
-    sudo sed -i.bak "/$START_MARKER/,/$END_MARKER/d" "$HOSTS_FILE"
-    echo "Entries removed."
+    sudo sed -i.bak "/$START_MARKER/,/$END_MARKER/d" "$HOSTS_FILE"  # Remove entries between the markers
+    echo "Entries removed."  # Inform the user that entries have been removed
 }
 
 # Function to toggle entries in /etc/hosts
 toggle_entries() {
     if grep -q "$START_MARKER" "$HOSTS_FILE"; then
-        # If the entries are already present, remove them
-        remove_entries
+        remove_entries  # If entries are present, remove them
     else
-        # Otherwise, create a backup and add the entries
-        backup_hosts_file
-        add_entries
+        backup_hosts_file  # Create a backup before adding entries
+        add_entries  # Add entries to the hosts file
     fi
 }
 
 # Main function to execute the script
 main() {
-    # Ensure the script is run with root privileges
-    if [[ $EUID -ne 0 ]]; then
+    if [[ $EUID -ne 0 ]]; then  # Check if the script is run as root
         echo "This script must be run as root"
         exit 1
     fi
 
-    read_entries
-    toggle_entries
+    read_entries  # Read entries from the configuration file
+    toggle_entries  # Toggle the entries in the hosts file
 }
 
 main "$@"
