@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Display Welcome
+# Display Welcome message with links and support information
 echo "-------------------"
 echo "BigBearWebsiteBlocker"
 echo "-------------------"
@@ -12,14 +12,16 @@ echo "If you would like to support me, please consider buying me a tea"
 echo "https://ko-fi.com/bigbeartechworld"
 echo ""
 
-# Set the current directory
+# Set the current directory where the script is located
 CURRENT_DIR=$(dirname "$0")
 
-# Load settings from the configuration file or create a default one
+# Load settings from the configuration file or create a default one if it doesn't exist
 SETTINGS_FILE="$CURRENT_DIR/settings.conf"
 if [[ -f "$SETTINGS_FILE" ]]; then
+    # Load existing settings.conf file
     source "$SETTINGS_FILE"
 else
+    # Create a default settings.conf file if it doesn't exist
     cat <<EOL > "$SETTINGS_FILE"
 HOSTS_FILE="/etc/hosts"
 CONFIG_FILE="$CURRENT_DIR/blocked_websites.conf"
@@ -28,11 +30,14 @@ START_MARKER="# START blocked_websites by BigBearTechWorld"
 END_MARKER="# END blocked_websites by BigBearTechWorld"
 BACKUP_DIR="/tmp"
 EOL
+    # Load the newly created settings.conf file
     source "$SETTINGS_FILE"
     echo "Created default settings.conf file."
 fi
 
+# Ensure CONFIG_FILE uses the correct path
 CONFIG_FILE="$CURRENT_DIR/$(basename $CONFIG_FILE)"
+
 # Create a default blocked_websites.conf file if it doesn't exist
 if [[ ! -f "$CONFIG_FILE" ]]; then
     cat <<EOL > "$CONFIG_FILE"
@@ -71,12 +76,16 @@ fi
 read_entries() {
     if [[ -f $CONFIG_FILE ]]; then
         HOSTS_ENTRIES=()
+        # Read each line in the configuration file
         while IFS= read -r line; do
-            [[ $line =~ ^#.*$ || -z $line ]] && continue  # Skip comments and empty lines
+            # Skip comments and empty lines
+            [[ $line =~ ^#.*$ || -z $line ]] && continue
             if [[ $line == $DEFAULT_RESOLVER* ]]; then
+                # If the line starts with the default resolver, add it directly
                 HOSTS_ENTRIES+=("$line")
                 domain=$(echo "$line" | awk '{print $2}')
             else
+                # Otherwise, prepend the default resolver
                 HOSTS_ENTRIES+=("$DEFAULT_RESOLVER $line")
                 domain=$line
             fi
@@ -86,6 +95,7 @@ read_entries() {
             fi
         done < "$CONFIG_FILE"
     else
+        # Print an error message and exit if the configuration file is not found
         echo "Configuration file $CONFIG_FILE not found."
         exit 1
     fi
@@ -116,18 +126,21 @@ remove_entries() {
     echo "Entries removed."
 }
 
-# Function to toggle entries
+# Function to toggle entries in /etc/hosts
 toggle_entries() {
     if grep -q "$START_MARKER" "$HOSTS_FILE"; then
+        # If the entries are already present, remove them
         remove_entries
     else
+        # Otherwise, create a backup and add the entries
         backup_hosts_file
         add_entries
     fi
 }
 
-# Main function
+# Main function to execute the script
 main() {
+    # Ensure the script is run with root privileges
     if [[ $EUID -ne 0 ]]; then
         echo "This script must be run as root"
         exit 1
