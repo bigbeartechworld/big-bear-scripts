@@ -26,8 +26,8 @@ else
 HOSTS_FILE="/etc/hosts"
 CONFIG_FILE="blocked_websites.conf"
 DEFAULT_RESOLVER="127.0.0.1"
-START_MARKER="# START blocked_websites by BigBearTechWorld"
-END_MARKER="# END blocked_websites by BigBearTechWorld"
+START_MARKER="# START Blocking Websites by BigBearTechWorld"
+END_MARKER="# END Blocking Websites by BigBearTechWorld"
 BACKUP_DIR="/tmp"
 EOL
     # Load the newly created settings.conf file
