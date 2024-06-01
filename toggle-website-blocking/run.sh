@@ -4,7 +4,7 @@
 echo "-------------------"
 echo "BigBearWebsiteBlocker"
 echo "-------------------"
-echo "Here is some links"
+echo "Here are some links"
 echo "https://community.bigbeartechworld.com"
 echo "https://github.com/BigBearTechWorld"
 echo "-------------------"
@@ -12,8 +12,60 @@ echo "If you would like to support me, please consider buying me a tea"
 echo "https://ko-fi.com/bigbeartechworld"
 echo ""
 
-# Load settings from the configuration file
-source ./settings.conf
+# Set the current directory
+CURRENT_DIR=$(dirname "$0")
+
+# Load settings from the configuration file or create a default one
+SETTINGS_FILE="$CURRENT_DIR/settings.conf"
+if [[ -f "$SETTINGS_FILE" ]]; then
+    source "$SETTINGS_FILE"
+else
+    cat <<EOL > "$SETTINGS_FILE"
+HOSTS_FILE="/etc/hosts"
+CONFIG_FILE="$CURRENT_DIR/blocked_websites.conf"
+DEFAULT_RESOLVER="127.0.0.1"
+START_MARKER="# START blocked_websites by BigBearTechWorld"
+END_MARKER="# END blocked_websites by BigBearTechWorld"
+BACKUP_DIR="/tmp"
+EOL
+    source "$SETTINGS_FILE"
+    echo "Created default settings.conf file."
+fi
+
+CONFIG_FILE="$CURRENT_DIR/$(basename $CONFIG_FILE)"
+# Create a default blocked_websites.conf file if it doesn't exist
+if [[ ! -f "$CONFIG_FILE" ]]; then
+    cat <<EOL > "$CONFIG_FILE"
+x.com
+twitter.com
+instagram.com
+facebook.com
+linkedin.com
+snapchat.com
+tiktok.com
+reddit.com
+pinterest.com
+tumblr.com
+flickr.com
+quora.com
+wechat.com
+wechatapp.com
+vk.com
+ok.ru
+viber.com
+line.me
+telegram.org
+whatsapp.com
+youtube.com
+news.ycombinator.com
+nytimes.com
+discord.com
+discordapp.com
+discord.gg
+twitch.tv
+EOL
+    echo "Created default blocked_websites.conf file."
+fi
 
 # Function to read entries from the configuration file
 read_entries() {
