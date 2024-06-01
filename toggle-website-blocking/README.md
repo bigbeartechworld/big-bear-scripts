@@ -1,13 +1,13 @@
 # Run command
 
 ```bash
-sudo curl -s https://raw.githubusercontent.com/bigbeartechworld/big-bear-scripts/master/toggle-website-blocking/run.sh | sudo bash
+curl -s https://raw.githubusercontent.com/bigbeartechworld/big-bear-scripts/master/toggle-website-blocking/run.sh | sudo bash
 ```
 
 OR
 
 ```bash
-sudo wget -qO- https://raw.githubusercontent.com/bigbeartechworld/big-bear-scripts/master/toggle-website-blocking/run.sh | sudo bash
+wget -qO- https://raw.githubusercontent.com/bigbeartechworld/big-bear-scripts/master/toggle-website-blocking/run.sh | sudo bash
 ```
 
 ## About
