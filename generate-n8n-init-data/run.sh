@@ -21,7 +21,7 @@ fi
 mkdir -p "$(dirname "$location")"
 
 # Download the file from the given URL and save it to the specified location
-if ! curl -L "https://raw.githubusercontent.com/n8n-io/n8n/master/docker/compose/withPostgres/init-data.sh" -o "$location"; then
+if ! curl -L "https://raw.githubusercontent.com/bigbeartechworld/big-bear-scripts/master/generate-n8n-init-data/init-data.sh" -o "$location"; then
     echo "Error downloading the file. Check your Internet connection or the URL."
     exit 1
 fi
