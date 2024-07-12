@@ -1,5 +1,26 @@
 #!/bin/bash
 
+MESSAGE="Made by BigBearTechWorld"
+
+# Function to print a decorative line
+print_decorative_line() {
+    printf "%s\n" "------------------------------------------------------"
+}
+
+# Print the introduction message with decorations
+echo
+print_decorative_line
+echo "Big Bear Download ZIM Files Script"
+print_decorative_line
+echo
+echo "$MESSAGE"
+echo
+print_decorative_line
+echo
+echo "If this is useful, please consider supporting my work at: https://ko-fi.com/bigbeartechworld"
+echo
+print_decorative_line
+
 # Check if URL is provided
 if [ -z "$1" ]; then
     echo "Usage: $0 <url> [destination_directory]"
