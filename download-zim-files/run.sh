@@ -55,3 +55,13 @@ fi
 
 echo "Download and move completed successfully!"
 echo "File moved to $DESTINATION"
+
+# Get the path to the docker-compose.yml file
+COMPOSE_FILE="/var/lib/casaos/apps/big-bear-kiwix-serve/docker-compose.yml"
+
+# Apply changes using casaos-cli
+casaos-cli app-management apply "big-bear-kiwix-serve" --file="$COMPOSE_FILE"
+
+echo "Applying changes to big-bear-kiwix-serve..."
+
+echo "Script execution completed."
