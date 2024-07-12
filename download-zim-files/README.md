@@ -19,5 +19,5 @@ If `<custom_destination_directory>` is not provided, the script will use the def
 Example:
 
 ```bash
-bash -c "$(wget -qLO - https://raw.githubusercontent.com/bigbeartechworld/big-bear-scripts/master/master/run.sh)" -- https://download.kiwix.org/zim/wikipedia_en_ray_charles_2022-12.zim
+bash -c "$(wget -qLO - https://raw.githubusercontent.com/bigbeartechworld/big-bear-scripts/master/download-zim-files/run.sh)" -- https://download.kiwix.org/zim/other/termux_en_all_maxi_2022-12.zim
 ```
