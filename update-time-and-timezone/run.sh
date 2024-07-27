@@ -32,6 +32,30 @@ set_timezone() {
     echo "Timezone set successfully."
 }
 
+# Function to check and ensure NTP is running using ntpd
+check_ntpd() {
+    echo "Checking NTP (ntpd) status..."
+    ntpd_status=$(systemctl is-active ntp)
+
+    if [ "$ntpd_status" != "active" ]; then
+        echo "NTP (ntpd) is not active. Installing and starting ntpd..."
+        sudo apt-get update
+        sudo apt-get install -y ntp
+        sudo systemctl enable ntp
+        sudo systemctl start ntp
+
+        # Re-check the status
+        ntpd_status=$(systemctl is-active ntp)
+        if [ "$ntpd_status" == "active" ]; then
+            echo "NTP (ntpd) has been successfully started and enabled."
+        else
+            echo "Failed to start and enable NTP (ntpd). Please check your system configuration."
+        fi
+    else
+        echo "NTP (ntpd) is already active."
+    fi
+}
+
 # Main script execution
 echo "Starting script to fix date, time, and timezone issues..."
 
@@ -48,8 +72,11 @@ if [ "$is_correct" != "y" ]; then
 
     # Set timezone
     set_timezone
+
+    # Check and ensure NTP is running
+    check_ntpd
 else
     echo "Date and time is correct, no changes made."
 fi
 
-echo "Script execution completed. Please check for updates from the GUI or reboot if necessary."
+echo "Script execution completed."
