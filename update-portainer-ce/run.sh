@@ -103,15 +103,28 @@ done
 echo "4. Latest (${versions[0]})"
 
 # Ask user to choose a version
+# Start an infinite loop to ensure we get a valid input
 while true; do
+    # Prompt the user to choose a version and store the input in 'choice'
     read -p "Which version would you like to install? (1-4, default is 4): " choice
+
+    # If 'choice' is empty, set it to 4 (latest version)
+    # ${choice:-4} means "use the value of 'choice' if it's set, otherwise use 4"
     choice=${choice:-4}
+
+    # Check if the input is a number between 1 and 4
+    # =~ is for regex matching, ^[1-4]$ matches any single digit from 1 to 4
     if [[ "$choice" =~ ^[1-4]$ ]]; then
+        # If the choice is 4 (latest version)
         if [ "$choice" -eq 4 ]; then
+            # Set version_to_install to the first (newest) version in the array
             version_to_install=${versions[0]}
         else
+            # Set version_to_install to the chosen version
+            # We subtract 1 from choice because array indexing starts at 0
             version_to_install=${versions[$((choice-1))]}
         fi
+        # Exit the loop as we have a valid choice
         break
     else
         echo "Invalid choice. Please enter a number between 1 and 4."
