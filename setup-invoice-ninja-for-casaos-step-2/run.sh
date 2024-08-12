@@ -23,4 +23,6 @@ echo "If this is useful, please consider supporting my work at: https://ko-fi.co
 echo
 print_decorative_line
 
-docker exec -it big-bear-invoice-ninja php artisan migrate:fresh --seed && php artisan db:seed && php artisan ninja:create-test-data && cp .env.example .env
+docker exec -it big-bear-invoice-ninja php artisan migrate:fresh --seed && php artisan db:seed && php artisan ninja:create-test-data
+
+docker exec -it big-bear-invoice-ninja cp .env.example .env
