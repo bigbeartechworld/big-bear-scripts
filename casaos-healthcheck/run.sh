@@ -140,7 +140,8 @@ check_dns_resolution() {
         "registry.hub.docker.com"
         "gcr.io"
         "azurecr.io"
-        "ghcr.io"
+        "ghcr.io",
+        "registry.gitlab.com"
     )
 
     print_header "DNS Resolution Check:"
@@ -173,7 +174,7 @@ elif [[ "$1" == "real_test" ]]; then
 else
     # Normal script execution
     # Display Welcome
-    print_header "BigBearCasaOS Healthcheck V2.1"
+    print_header "BigBearCasaOS Healthcheck V2.2"
     echo "Here are some links:"
     echo "https://community.bigbeartechworld.com"
     echo "https://github.com/BigBearTechWorld"
