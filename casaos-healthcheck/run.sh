@@ -26,6 +26,12 @@ print_header() {
 check_service_status() {
     local service=$1
     local status=$(systemctl is-active "$service")
+
+    if [[ "$service" == "casaos-local-storage-first.service" && "$status" == "inactive" ]]; then
+        print_color "0;33" "${WARNING_MARK} $service is normally stopped"
+        return
+    fi
+
     case $status in
         "active")
             print_color "0;32" "${CHECK_MARK} $service is running"
