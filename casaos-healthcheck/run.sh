@@ -147,7 +147,7 @@ elif [[ "$1" == "real_test" ]]; then
 else
     # Normal script execution
     # Display Welcome
-    print_header "BigBearCasaOS Healthcheck"
+    print_header "BigBearCasaOS Healthcheck V2"
     echo "Here are some links:"
     echo "https://community.bigbeartechworld.com"
     echo "https://github.com/BigBearTechWorld"
