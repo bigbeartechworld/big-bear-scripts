@@ -131,6 +131,32 @@ get_casaos_services() {
     systemctl list-units --all --type=service | grep "$SERVICE_PREFIX" | awk '{print $1}'
 }
 
+# Function to check DNS resolution for a list of registries
+check_dns_resolution() {
+    local registries=(
+        "docker.io"
+        "index.docker.io"
+        "registry-1.docker.io"
+        "registry.hub.docker.com"
+        "gcr.io"
+        "azurecr.io"
+        "ghcr.io"
+    )
+
+    print_header "DNS Resolution Check:"
+
+    for registry in "${registries[@]}"; do
+        if nslookup "$registry" &>/dev/null; then
+            print_color "0;32" "${CHECK_MARK} DNS resolution for $registry is successful"
+        else
+            print_color "0;31" "${CROSS_MARK} DNS resolution for $registry failed"
+            echo "Debugging info for $registry:"
+            nslookup "$registry" 2>&1 | tee /dev/stderr
+        fi
+    done
+}
+
+
 # Main execution
 if [[ "$1" == "simulated_test" ]]; then
     echo "Running in simulated test mode..."
@@ -147,7 +173,7 @@ elif [[ "$1" == "real_test" ]]; then
 else
     # Normal script execution
     # Display Welcome
-    print_header "BigBearCasaOS Healthcheck V2"
+    print_header "BigBearCasaOS Healthcheck V2.1"
     echo "Here are some links:"
     echo "https://community.bigbeartechworld.com"
     echo "https://github.com/BigBearTechWorld"
@@ -195,6 +221,9 @@ else
     else
         print_color "0;31" "${CROSS_MARK} Error: Configuration file not found."
     fi
+
+    # DNS resolution check for Docker registries
+    check_dns_resolution
 
     # Get a list of all casaos services and check their status
     SERVICES=$(get_casaos_services)
