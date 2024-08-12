@@ -63,10 +63,17 @@ EOF
 is_real_error() {
     local line="$1"
 
+    # Known non-error patterns (can be configured or extended as needed)
+    local non_error_patterns=(
+        "remote_ip\":\"127.0.0.1\",\"host\":\"127.0.0.1:"
+        "status\":200,\"error\":\"\""
+        "uri\":\"/v2/local_storage/merge\".*status\":503"
+    )
+
     # Exclude known non-error patterns
-    [[ "$line" =~ "remote_ip\":\"127.0.0.1\",\"host\":\"127.0.0.1:" ]] && return 1
-    [[ "$line" =~ "status\":200,\"error\":\"\"" ]] && return 1
-    [[ "$line" =~ "uri\":\"/v2/local_storage/merge\"" && "$line" =~ "status\":503" ]] && return 1
+    for pattern in "${non_error_patterns[@]}"; do
+        [[ "$line" =~ $pattern ]] && return 1
+    done
 
     # Include patterns that are likely real errors
     [[ "$line" =~ "error\":\"[^\"]+\"" && ! "$line" =~ "error\":\"\"" ]] && return 0
