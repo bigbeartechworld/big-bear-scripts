@@ -71,6 +71,13 @@ get_current_version() {
     fi
 }
 
+# Function to get current Portainer ports
+get_current_ports() {
+    local ports
+    ports=$(docker inspect --format='{{range $p, $conf := .NetworkSettings.Ports}}{{$p}}={{(index $conf 0).HostPort}} {{end}}' portainer 2>/dev/null)
+    echo "$ports"
+}
+
 # Function to get the last three Portainer versions
 get_last_three_versions() {
     curl -s https://api.github.com/repos/portainer/portainer/releases | grep -m 3 '"tag_name":' | awk -F'"' '{print $4}'
@@ -91,6 +98,19 @@ remove_existing_images() {
 
 # Get current Portainer version
 current_version=$(get_current_version)
+
+# Get current Portainer ports
+current_ports=$(get_current_ports)
+
+# Set default ports if none are found
+port1="8000:8000"
+port2="9443:9443"
+
+if [[ ! -z "$current_ports" ]]; then
+    # Extract ports from the current configuration
+    port1=$(echo "$current_ports" | grep -o '8000/tcp=[0-9]*' | sed 's/tcp=/:/')
+    port2=$(echo "$current_ports" | grep -o '9443/tcp=[0-9]*' | sed 's/tcp=/:/')
+fi
 
 # Get the last three versions
 mapfile -t versions < <(get_last_three_versions)
@@ -165,11 +185,11 @@ echo "Pulling Portainer image version $version_to_install..."
 docker pull portainer/portainer-ce:$version_to_install
 check_command "Failed to pull Portainer image"
 
-# Create and start a new Portainer container
+# Create and start a new Portainer container with the same ports
 echo "Creating and starting a new Portainer container..."
 docker run -d \
-    -p 8000:8000 \
-    -p 9443:9443 \
+    -p $port1 \
+    -p $port2 \
     --name portainer \
     --restart always \
     -v /var/run/docker.sock:/var/run/docker.sock \
