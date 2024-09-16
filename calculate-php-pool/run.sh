@@ -1,5 +1,52 @@
 #!/bin/bash
 
+# Colors and styling
+BLUE='\033[0;34m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+BOLD='\033[1m'
+NC='\033[0m' # No Color
+
+# Unicode characters
+CHECK_MARK='\u2714'
+CROSS_MARK='\u2718'
+RIGHT_ARROW='\u2192'
+INFO_MARK='\u2139'
+
+# Function to print section headers
+print_header() {
+    echo -e "\n${BLUE}${BOLD}══════ $1 ══════${NC}\n"
+}
+
+# Function to print success messages
+print_success() {
+    echo -e "${GREEN}${CHECK_MARK} $1${NC}"
+}
+
+# Function to print warning messages
+print_warning() {
+    echo -e "${YELLOW}${INFO_MARK} $1${NC}"
+}
+
+# Function to print error messages
+print_error() {
+    echo -e "${RED}${CROSS_MARK} $1${NC}"
+}
+
+# Display Welcome message with links and support information
+print_header "BigBearPHPFPMMemoryAnalyzer V2.0"
+
+echo -e "${BOLD}Community Links:${NC}"
+echo -e "${RIGHT_ARROW} https://community.bigbeartechworld.com"
+echo -e "${RIGHT_ARROW} https://github.com/BigBearTechWorld"
+
+echo -e "\n${BOLD}Support:${NC}"
+echo -e "If you would like to support me, please consider buying me a tea"
+echo -e "${RIGHT_ARROW} https://ko-fi.com/bigbeartechworld"
+
+print_header "Analysis Start"
+
 # Function to convert memory from KB to MB
 to_mb() {
     echo "scale=2; $1 / 1024" | bc
@@ -9,199 +56,171 @@ to_mb() {
 display_memory() {
     local memory_mb=$1
     if (( $(echo "$memory_mb < 1024" | bc -l) )); then
-        echo "${memory_mb} MB"
+        printf "%.2f MB" $memory_mb
     else
-        local memory_gb=$(echo "scale=2; $memory_mb / 1024" | bc)
-        echo "${memory_gb} GB"
+        printf "%.2f GB" $(echo "scale=2; $memory_mb / 1024" | bc)
     fi
 }
+
+print_header "PHP-FPM Memory Analyzer and Optimizer"
 
 # Get total installed RAM in MB and display appropriately
 total_ram_mb=$(free -m | awk '/^Mem:/ {print $2}')
 total_ram_display=$(display_memory $total_ram_mb)
+echo -e "${BOLD}Total RAM:${NC} $total_ram_display"
 
 # Get total memory used by processes other than PHP-FPM
-total_used_other_mb=$(ps --no-headers -e -o rss,comm | grep -v php-fpm | awk '{sum+=$1} END {print sum}' | xargs -I {} bash -c "echo $(to_mb {})")
-total_used_other_mb=$(LC_NUMERIC=C printf "%.2f" $total_used_other_mb)  # Ensure correct formatting
+total_used_other_mb=$(ps --no-headers -e -o rss,comm | grep -v php-fpm | awk '{sum+=$1} END {print sum/1024}')
+total_used_other_mb=$(LC_NUMERIC=C printf "%.2f" $total_used_other_mb)
+echo -e "${BOLD}Memory used by other processes:${NC} $(display_memory $total_used_other_mb)"
 
 # Detect PHP-FPM processes
 php_fpm_versions=$(ps -eo comm | grep php-fpm | grep -v grep | sort | uniq)
 
 if [[ -z "$php_fpm_versions" ]]; then
-    echo "No PHP-FPM processes found."
+    print_error "No PHP-FPM processes found."
     exit 1
 fi
 
-# Step 2: Allow user to select a version if multiple are found
+# Allow user to select a version if multiple are found
 array=($php_fpm_versions)
 if [ ${#array[@]} -gt 1 ]; then
-    echo "Multiple PHP-FPM versions detected. Please select one:"
+    echo -e "\n${BOLD}Multiple PHP-FPM versions detected. Please select one:${NC}"
     select version in "${array[@]}"; do
         if [[ " ${array[*]} " =~ " ${version} " ]]; then
             php_fpm_version=$version
             break
         else
-            echo "Invalid selection. Please try again."
+            print_error "Invalid selection. Please try again."
         fi
     done
 else
     php_fpm_version=${array[0]}
 fi
 
-echo "Selected PHP-FPM version: $php_fpm_version"
+print_success "Selected PHP-FPM version: $php_fpm_version"
 
-# Try to find the PHP-FPM master process
+# Find the PHP-FPM master process and calculate uptime
 php_fpm_pid=$(pgrep -f "php-fpm: master process" | head -n 1)
-if [[ -z "$php_fpm_pid" ]]; then
-    echo "Unable to find the PID for PHP-FPM master process. Estimations might be inaccurate."
-else
+if [[ -n "$php_fpm_pid" ]]; then
     php_fpm_start_time=$(ps -o lstart= -p "$php_fpm_pid")
-    php_fpm_up_seconds=$(date --date="$php_fpm_start_time" +%s)
-    current_time=$(date +%s)
-    php_fpm_uptime=$((current_time - php_fpm_up_seconds))
+    php_fpm_uptime=$(($(date +%s) - $(date --date="$php_fpm_start_time" +%s)))
+    printf "${BOLD}PHP-FPM master process uptime:${NC} %d days, %02d:%02d:%02d\n" $((php_fpm_uptime/86400)) $((php_fpm_uptime%86400/3600)) $((php_fpm_uptime%3600/60)) $((php_fpm_uptime%60))
 
-    # Convert uptime to days, hours, minutes, and seconds
-    php_fpm_uptime_days=$((php_fpm_uptime / 86400))
-    php_fpm_uptime_hours=$(( (php_fpm_uptime % 86400) / 3600 ))
-    php_fpm_uptime_minutes=$(( (php_fpm_uptime % 3600) / 60 ))
-    php_fpm_uptime_seconds=$((php_fpm_uptime % 60))
-
-    echo "PHP-FPM master process uptime: $php_fpm_uptime_days days, $php_fpm_uptime_hours hours, $php_fpm_uptime_minutes minutes, $php_fpm_uptime_seconds seconds."
-
-    # Warning if uptime is too short
-    if [[ $php_fpm_uptime_hours -lt 1 && $php_fpm_uptime_days -eq 0 ]]; then
-        echo "Warning: PHP-FPM master process has been up for less than 1 hour. Memory usage estimations might be inaccurate."
+    if [[ $php_fpm_uptime -lt 3600 ]]; then
+        print_warning "PHP-FPM master process has been up for less than 1 hour. Memory usage estimations might be inaccurate."
     fi
+else
+    print_warning "Unable to find the PID for PHP-FPM master process. Uptime information unavailable."
 fi
 
-# Step 3: Calculate average memory usage
+# Calculate average memory usage
 avg_memory=$(ps --no-headers -o rss -C $php_fpm_version | awk '{sum+=$1; ++n} END {print sum/n/1024}')
+echo -e "${BOLD}Average Memory Usage per process:${NC} $(display_memory $avg_memory)"
 
-echo "Average Memory Usage per process (MB): $avg_memory"
-
-# Extract PHP version number from the selected PHP-FPM version
+# Extract PHP version number and read PHP-FPM pool configuration
 php_version=$(echo "$php_fpm_version" | sed -E 's/[^0-9]*([0-9]+\.[0-9]+).*/\1/')
+pool_config="/etc/php/$php_version/fpm/pool.d/www.conf"
 
-# Step 4: Read PHP-FPM pool configuration (adjust the path to your php-fpm pool config)
-pool_config="/etc/php/$php_version/fpm/pool.d/www.conf"  # Example path, change as needed
-if [[ -f "$pool_config" ]]; then
-    max_children=$(grep "^pm.max_children" $pool_config | cut -d "=" -f2 | xargs)
-else
-    echo "Pool configuration file not found."
+if [[ ! -f "$pool_config" ]]; then
+    print_error "Pool configuration file not found at $pool_config"
     exit 1
 fi
 
-echo "Max children set in pool: $max_children"
+max_children=$(awk '/^pm.max_children/ {print $3}' "$pool_config")
+echo -e "${BOLD}Max children set in pool:${NC} $max_children"
 
-# Calculate total memory requirement and display in MB or GB
+print_header "Memory Requirements"
+
+# Calculate and display total memory requirements
 total_memory=$(echo "$avg_memory * $max_children" | bc)
-if (( $(echo "$total_memory < 1024" | bc -l) )); then
-    echo "Total estimated memory required for all PHP-FPM processes: $total_memory MB"
-else
-    total_memory_gb=$(echo "$total_memory / 1024" | bc -l)
-    printf "Total estimated memory required for all PHP-FPM processes: %.2f GB\n" $total_memory_gb
-fi
+echo -e "${BOLD}Total estimated memory for PHP-FPM:${NC} $(display_memory $total_memory)"
 
-# Total estimated memory including PHP-FPM
 total_estimated_mb=$(echo "scale=2; $total_memory + $total_used_other_mb" | bc)
-total_estimated_mb=$(LC_NUMERIC=C printf "%.2f" $total_estimated_mb)  # Ensure correct formatting
+total_estimated_mb=$(LC_NUMERIC=C printf "%.2f" $total_estimated_mb)
 total_estimated_display=$(display_memory $total_estimated_mb)
+
+echo -e "${BOLD}Total estimated memory usage:${NC} $total_estimated_display"
 
 # Check if total estimated memory exceeds total RAM
 if (( $(echo "$total_estimated_mb > $total_ram_mb" | bc -l) )); then
-    echo "Warning: Estimated memory usage ($total_estimated_display) exceeds total RAM ($total_ram_display)"
+    print_warning "Estimated memory usage ($total_estimated_display) exceeds total RAM ($total_ram_display)"
 else
-    echo "Server RAM is sufficient. Total RAM: $total_ram_display, Estimated usage: $total_estimated_display"
+    print_success "Server RAM is sufficient. (Total RAM: $total_ram_display, Estimated usage: $total_estimated_display)"
 fi
 
-# Optimization Suggestions
-echo "Optimization Suggestions:"
-if (( $(echo "$total_estimated_mb > $total_ram_mb" | bc -l) )); then
-    echo "- Consider reducing 'pm.max_children' in your PHP-FPM pool configuration."
-    echo "- Review and optimize your PHP application to lower memory usage per process."
+print_header "Optimization Suggestions"
+
+memory_usage_ratio=$(echo "scale=2; $total_estimated_mb / $total_ram_mb" | bc)
+if (( $(echo "$memory_usage_ratio > 1" | bc -l) )); then
+    print_warning "Reduce 'pm.max_children' in your PHP-FPM pool configuration."
+    print_warning "Review and optimize your PHP application to lower memory usage per process."
+elif (( $(echo "$memory_usage_ratio > 0.7" | bc -l) )); then
+    print_warning "Current settings are close to the server's limit. Consider optimizing to provide more buffer."
 else
-    if (( $(echo "$total_estimated_mb / $total_ram_mb > 0.7" | bc -l) )); then
-        echo "- While the current settings seem okay, it's close to the server's limit. Consider optimizing to provide more buffer."
-    else
-        echo "- Your current PHP-FPM configuration seems well-optimized for your server's RAM."
-    fi
+    print_success "Your current PHP-FPM configuration seems well-optimized for your server's RAM."
 fi
 
-# Check if the pool is set to static and suggest pm.max_children if necessary
-pm_type=$(grep "^pm\s*=" $pool_config | awk '{print $3}')
-if [[ "$pm_type" == "static" ]]; then
-    optimal_max_children=$(echo "$total_ram_mb / $avg_memory" | bc)
-    echo "Your PHP-FPM pool is configured to use a static process manager."
-    echo "Based on the available RAM and average memory usage per process:"
-    echo "- Optimal 'pm.max_children' could be around $optimal_max_children"
-    echo "  (Consider keeping some buffer for the OS and other processes)"
-# Suggestion for dynamic and ondemand
-elif [[ "$pm_type" == "dynamic" || "$pm_type" == "ondemand" ]]; then
-    optimal_max_children=$(echo "$total_ram_mb / $avg_memory" | bc)
-    echo "For a 'dynamic' or 'ondemand' PHP-FPM pool configuration, consider the following settings:"
-    echo "- pm.max_children: $optimal_max_children (Based on available RAM and average memory usage)"
-    if [[ "$pm_type" == "dynamic" ]]; then
-        start_servers=$(echo "$optimal_max_children / 4" | bc)  # Example calculation
-        min_spare_servers=$(echo "$optimal_max_children / 8" | bc)  # Example calculation
-        max_spare_servers=$(echo "$optimal_max_children / 2" | bc)  # Example calculation
-        echo "- pm.start_servers: $start_servers"
-        echo "- pm.min_spare_servers: $min_spare_servers"
-        echo "- pm.max_spare_servers: $max_spare_servers"
-    elif [[ "$pm_type" == "ondemand" ]]; then
-        process_idle_timeout="10s"  # Example value
-        echo "- pm.process_idle_timeout: $process_idle_timeout"
-    fi
-    echo "Adjust these values based on your application's load and performance testing."
-else
-    echo "Your PHP-FPM pool is set to an unknown process manager type: $pm_type."
+# Check pool type and provide specific suggestions
+pm_type=$(awk '/^pm\s*=/ {print $3}' "$pool_config")
+optimal_max_children=$(echo "$total_ram_mb / $avg_memory * 0.8" | bc)
+
+echo -e "\n${BOLD}Current pool type:${NC} $pm_type"
+echo -e "${BOLD}Recommended settings:${NC}"
+echo -e "${RIGHT_ARROW} pm.max_children = $optimal_max_children"
+
+if [[ "$pm_type" == "dynamic" ]]; then
+    start_servers=$(echo "$optimal_max_children / 4" | bc)
+    min_spare_servers=$(echo "$optimal_max_children / 8" | bc)
+    max_spare_servers=$(echo "$optimal_max_children / 2" | bc)
+    echo -e "${RIGHT_ARROW} pm.start_servers = $start_servers"
+    echo -e "${RIGHT_ARROW} pm.min_spare_servers = $min_spare_servers"
+    echo -e "${RIGHT_ARROW} pm.max_spare_servers = $max_spare_servers"
+elif [[ "$pm_type" == "ondemand" ]]; then
+    echo -e "${RIGHT_ARROW} pm.process_idle_timeout = 10s"
 fi
 
-echo "- Regularly monitor performance and adjust settings as needed."
-echo "- If further optimizations are not sufficient, upgrading your server's hardware might be necessary."
+echo -e "\n${BOLD}Additional recommendations:${NC}"
+echo -e "${RIGHT_ARROW} Regularly monitor performance and adjust settings as needed."
+echo -e "${RIGHT_ARROW} Consider implementing PHP opcache and application-level caching."
+echo -e "${RIGHT_ARROW} If further optimizations are insufficient, consider upgrading server hardware."
 
-# Ask the user if they want to update the configuration file
+# Prompt user to update configuration
+echo
 read -p "Do you want to update the PHP-FPM pool configuration with these values? (y/N) " -n 1 -r
-echo    # Move to a new line
+echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-    # Backup the original configuration file
     if sudo cp "$pool_config" "${pool_config}.bak"; then
-        echo "Backup of the configuration file created."
+        print_success "Backup of the configuration file created."
 
-        # Update configuration settings
-        if [[ "$pm_type" == "static" ]]; then
-            sudo sed -i "s/^pm.max_children = .*/pm.max_children = $optimal_max_children/" "$pool_config"
-        elif [[ "$pm_type" == "dynamic" ]]; then
-            sudo sed -i "s/^pm.max_children = .*/pm.max_children = $optimal_max_children/" "$pool_config"
+        sudo sed -i "s/^pm.max_children = .*/pm.max_children = $optimal_max_children/" "$pool_config"
+        if [[ "$pm_type" == "dynamic" ]]; then
             sudo sed -i "s/^pm.start_servers = .*/pm.start_servers = $start_servers/" "$pool_config"
             sudo sed -i "s/^pm.min_spare_servers = .*/pm.min_spare_servers = $min_spare_servers/" "$pool_config"
             sudo sed -i "s/^pm.max_spare_servers = .*/pm.max_spare_servers = $max_spare_servers/" "$pool_config"
         elif [[ "$pm_type" == "ondemand" ]]; then
-            sudo sed -i "s/^pm.max_children = .*/pm.max_children = $optimal_max_children/" "$pool_config"
-            sudo sed -i "s/^pm.process_idle_timeout = .*/pm.process_idle_timeout = $process_idle_timeout/" "$pool_config"
+            sudo sed -i "s/^pm.process_idle_timeout = .*/pm.process_idle_timeout = 10s/" "$pool_config"
         fi
 
-        echo "PHP-FPM pool configuration updated successfully."
-        echo "Don't forget to restart your PHP-FPM service for these changes to take effect."
+        print_success "PHP-FPM pool configuration updated successfully."
+
+        echo
+        read -p "Do you want to restart the PHP-FPM service now? (y/N) " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            if sudo systemctl restart php${php_version}-fpm; then
+                print_success "PHP-FPM service restarted successfully."
+            else
+                print_error "Failed to restart PHP-FPM service. Please restart manually."
+            fi
+        else
+            print_warning "Remember to restart your PHP-FPM service manually for changes to take effect."
+        fi
     else
-        echo "Error: Failed to create a backup of the configuration file. No changes were made."
+        print_error "Failed to create a backup of the configuration file. No changes were made."
     fi
 else
-    echo "No changes were made to the PHP-FPM pool configuration."
+    print_warning "No changes were made to the PHP-FPM pool configuration."
 fi
 
-# Ask if the user wants to restart PHP-FPM service
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    read -p "Do you want to restart the PHP-FPM service now? (y/N) " -n 1 -r
-    echo    # Move to a new line
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        # Attempt to restart PHP-FPM service
-        echo "Restarting PHP-FPM service..."
-        if sudo systemctl restart php${php_version}-fpm; then
-            echo "PHP-FPM service restarted successfully."
-        else
-            echo "Failed to restart PHP-FPM service. Please restart the service manually."
-        fi
-    else
-        echo "Remember to restart your PHP-FPM service manually for the changes to take effect."
-    fi
-fi
+print_header "Analysis Complete"
