@@ -157,6 +157,37 @@ check_dns_resolution() {
     done
 }
 
+# Function to check Docker status
+check_docker_status() {
+    print_header "Docker Status Check"
+    if command -v docker &> /dev/null; then
+        if docker info &> /dev/null; then
+            print_color "0;32" "${CHECK_MARK} Docker is running"
+        else
+            print_color "0;31" "${CROSS_MARK} Docker is installed but not running"
+        fi
+    else
+        print_color "0;31" "${CROSS_MARK} Docker is not installed"
+    fi
+}
+
+# Function to check storage health
+check_storage_health() {
+    print_header "Storage Health Check"
+    local disks=$(lsblk -ndo NAME,TYPE | awk '$2=="disk"{print $1}')
+    for disk in $disks; do
+        if smartctl -H /dev/$disk &> /dev/null; then
+            local health=$(smartctl -H /dev/$disk | grep "SMART overall-health")
+            if [[ $health == *"PASSED"* ]]; then
+                print_color "0;32" "${CHECK_MARK} /dev/$disk is healthy"
+            else
+                print_color "0;31" "${CROSS_MARK} /dev/$disk may have issues"
+            fi
+        else
+            print_color "0;33" "${WARNING_MARK} Unable to check health of /dev/$disk"
+        fi
+    done
+}
 
 # Main execution
 if [[ "$1" == "simulated_test" ]]; then
@@ -174,7 +205,7 @@ elif [[ "$1" == "real_test" ]]; then
 else
     # Normal script execution
     # Display Welcome
-    print_header "BigBearCasaOS Healthcheck V2.2"
+    print_header "BigBearCasaOS Healthcheck V2.3"
     echo "Here are some links:"
     echo "https://community.bigbeartechworld.com"
     echo "https://github.com/BigBearTechWorld"
@@ -235,4 +266,10 @@ else
     done <<< "$SERVICES"
 
     check_service_logs "real"
+
+    # New health checks
+    check_docker_status
+    check_storage_health
+
+    print_header "Health Check Complete"
 fi
