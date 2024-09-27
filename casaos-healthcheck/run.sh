@@ -140,23 +140,152 @@ check_dns_resolution() {
         "registry.hub.docker.com"
         "gcr.io"
         "azurecr.io"
-        "ghcr.io",
+        "ghcr.io"
         "registry.gitlab.com"
     )
+    local retries=3
+    local timeout=5
+    local dns_servers=("8.8.8.8" "1.1.1.1" "9.9.9.9" "208.67.222.222")
 
     print_header "DNS Resolution Check:"
 
+    # Verify basic network connectivity
+    if ! ping -c 1 8.8.8.8 &>/dev/null; then
+        print_color "0;31" "${CROSS_MARK} Network connectivity issue: Unable to reach 8.8.8.8"
+        return
+    fi
+
     for registry in "${registries[@]}"; do
-        if nslookup "$registry" &>/dev/null; then
-            print_color "0;32" "${CHECK_MARK} DNS resolution for $registry is successful"
-        else
+        local success=false
+        for dns_server in "${dns_servers[@]}"; do
+            for ((i=1; i<=retries; i++)); do
+                if timeout $timeout nslookup "$registry" "$dns_server" &>/dev/null; then
+                    print_color "0;32" "${CHECK_MARK} DNS resolution for $registry is successful using DNS server $dns_server"
+                    success=true
+                    break 2
+                else
+                    echo "Attempt $i of $retries for $registry using DNS server $dns_server failed"
+                fi
+            done
+        done
+
+        if [ "$success" = false ]; then
             print_color "0;31" "${CROSS_MARK} DNS resolution for $registry failed"
             echo "Debugging info for $registry:"
-            nslookup "$registry" 2>&1 | tee /dev/stderr
+            nslookup "$registry" 2>&1
+            # Alternative check with dig for more detailed output
+            if command -v dig &> /dev/null; then
+                echo "Dig output:"
+                dig +short "$registry" @8.8.8.8
+            fi
         fi
     done
 }
 
+# Function to check Docker status
+check_docker_status() {
+    print_header "Docker Status Check"
+    if command -v docker &> /dev/null; then
+        if docker info &> /dev/null; then
+            print_color "0;32" "${CHECK_MARK} Docker is running"
+        else
+            print_color "0;31" "${CROSS_MARK} Docker is installed but not running"
+        fi
+    else
+        print_color "0;31" "${CROSS_MARK} Docker is not installed"
+    fi
+}
+
+# Function to check storage health
+check_storage_health() {
+    print_header "Storage Health Check"
+    local disks=$(lsblk -ndo NAME,TYPE | awk '$2=="disk"{print $1}')
+    for disk in $disks; do
+        if smartctl -H /dev/$disk &> /dev/null; then
+            local health=$(smartctl -H /dev/$disk | grep "SMART overall-health")
+            if [[ $health == *"PASSED"* ]]; then
+                print_color "0;32" "${CHECK_MARK} /dev/$disk is healthy"
+            else
+                print_color "0;31" "${CROSS_MARK} /dev/$disk may have issues"
+            fi
+        else
+            print_color "0;33" "${WARNING_MARK} Unable to check health of /dev/$disk"
+        fi
+    done
+}
+
+# Function to check disk space
+check_disk_space() {
+    print_header "Disk Space Check"
+    local threshold=80
+    local usage=$(df / | grep / | awk '{ print $5 }' | sed 's/%//g')
+    if [ "$usage" -ge "$threshold" ]; then
+        print_color "0;31" "${CROSS_MARK} Disk usage is at ${usage}%, which is above the threshold of ${threshold}%"
+    else
+        print_color "0;32" "${CHECK_MARK} Disk usage is at ${usage}%, which is below the threshold of ${threshold}%"
+    fi
+}
+
+# Function to check CPU load
+check_cpu_load() {
+    print_header "CPU Load Check"
+    local load=$(uptime | awk -F'load average:' '{ print $2 }' | cut -d, -f1 | xargs)
+    local cores=$(nproc)
+    local threshold=$(awk "BEGIN {print $cores * 0.7}")
+    if (( $(awk "BEGIN {print ($load > $threshold) ? 1 : 0}") )); then
+        print_color "0;31" "${CROSS_MARK} CPU load is high: ${load} (Threshold: ${threshold})"
+    else
+        print_color "0;32" "${CHECK_MARK} CPU load is acceptable: ${load} (Threshold: ${threshold})"
+    fi
+}
+
+# Function to check memory usage
+check_memory_usage() {
+    print_header "Memory Usage Check"
+    local total_mem=$(free -m | awk '/^Mem:/ { print $2 }')
+    local used_mem=$(free -m | awk '/^Mem:/ { print $3 }')
+    local threshold=$(awk "BEGIN {print int($total_mem * 0.8)}")
+    if (( $(awk "BEGIN {print ($used_mem > $threshold) ? 1 : 0}") )); then
+        print_color "0;31" "${CROSS_MARK} Memory usage is high: ${used_mem}MB used of ${total_mem}MB (Threshold: ${threshold}MB)"
+    else
+        print_color "0;32" "${CHECK_MARK} Memory usage is acceptable: ${used_mem}MB used of ${total_mem}MB (Threshold: ${threshold}MB)"
+    fi
+}
+
+# Function to check system temperature
+check_system_temperature() {
+    print_header "System Temperature Check"
+    if command -v sensors &> /dev/null; then
+        sensors | grep -E 'Core|temp' | while read -r line; do
+            local temp=$(echo "$line" | awk '{print $2}' | sed 's/+//' | sed 's/°C//')
+            if (( $(awk "BEGIN {print ($temp > 80) ? 1 : 0}") )); then
+                print_color "0;31" "${CROSS_MARK} High temperature detected: ${line}"
+            else
+                print_color "0;32" "${CHECK_MARK} Temperature is normal: ${line}"
+            fi
+        done
+    elif [ -f "/sys/class/thermal/thermal_zone0/temp" ]; then
+        local temp=$(awk '{print $1/1000}' /sys/class/thermal/thermal_zone0/temp)
+        if (( $(awk "BEGIN {print ($temp > 80) ? 1 : 0}") )); then
+            print_color "0;31" "${CROSS_MARK} High temperature detected: ${temp}°C"
+        else
+            print_color "0;32" "${CHECK_MARK} Temperature is normal: ${temp}°C"
+        fi
+    else
+        print_color "0;33" "${WARNING_MARK} Unable to check system temperature. sensors command not found and /sys/class/thermal not available."
+    fi
+}
+
+# Function to check for system updates
+check_system_updates() {
+    print_header "System Update Check"
+    if command -v apt-get &> /dev/null; then
+        local updates=$(apt-get -s upgrade | grep -P '^\d+ upgraded')
+        print_color "0;32" "${CHECK_MARK} System updates available: ${updates}"
+    else
+        print_color "0;33" "${WARNING_MARK} apt-get command not found, skipping system update check"
+    fi
+}
 
 # Main execution
 if [[ "$1" == "simulated_test" ]]; then
@@ -174,7 +303,7 @@ elif [[ "$1" == "real_test" ]]; then
 else
     # Normal script execution
     # Display Welcome
-    print_header "BigBearCasaOS Healthcheck V2.2"
+    print_header "BigBearCasaOS Healthcheck V3.0"
     echo "Here are some links:"
     echo "https://community.bigbeartechworld.com"
     echo "https://github.com/BigBearTechWorld"
@@ -235,4 +364,15 @@ else
     done <<< "$SERVICES"
 
     check_service_logs "real"
+
+    # New health checks
+    check_docker_status
+    check_storage_health
+    check_disk_space
+    check_cpu_load
+    check_memory_usage
+    check_system_temperature
+    check_system_updates
+
+    print_header "Health Check Complete"
 fi
