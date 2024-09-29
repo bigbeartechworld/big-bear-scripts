@@ -55,12 +55,6 @@ if [[ "${response,,}" != "y" ]]; then
     exit 0
 fi
 
-# Check if user.db exists
-if [[ ! -f /var/lib/casaos/db/user.db ]]; then
-    echo "Error: user.db does not exist. Please ensure CasaOS is properly installed."
-    exit 1
-fi
-
 # For some systems, if user.db is not found
 if [[ ! -f /var/lib/casaos/db/user.db ]]; then
     echo "Warning: user.db not found. Attempting alternative method for some systems."
