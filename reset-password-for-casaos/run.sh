@@ -55,10 +55,20 @@ if [[ "${response,,}" != "y" ]]; then
     exit 0
 fi
 
-# Check if user.db exists
+# For some systems, if user.db is not found
 if [[ ! -f /var/lib/casaos/db/user.db ]]; then
-    echo "Error: user.db does not exist. Please ensure CasaOS is properly installed."
-    exit 1
+    echo "Warning: user.db not found. Attempting alternative method for some systems."
+
+    # Check if the file exists
+    if ls /var/lib/casaos/db/user.db &> /dev/null; then
+        echo "user.db found. Proceeding with backup and restart."
+        sudo mv /var/lib/casaos/db/user.db /var/lib/casaos/db/user.db.backup
+        sudo systemctl restart casaos-user-service.service
+        echo "CasaOS user service restarted. Please check if the issue is resolved."
+    else
+        echo "Error: user.db still not found. Please ensure CasaOS is properly installed on your Debian system."
+        exit 1
+    fi
 fi
 
 # Backup user.db
