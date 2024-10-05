@@ -287,6 +287,45 @@ check_system_updates() {
     fi
 }
 
+check_docker_ports() {
+    print_header "Docker Container Port Check"
+
+    # Check if Docker is installed and running
+    if ! command -v docker &> /dev/null || ! docker info &> /dev/null; then
+        print_color "0;33" "${WARNING_MARK} Docker is not installed or not running. Skipping Docker port check."
+        return
+    fi
+
+    # Check if UFW is installed and active
+    if ! command -v ufw &> /dev/null || ! ufw status | grep -q "Status: active"; then
+        print_color "0;33" "${WARNING_MARK} UFW is not installed or not active. Skipping firewall check for Docker ports."
+        return
+    fi
+
+    # Get UFW rules
+    ufw_rules=$(sudo ufw status | grep -E '^[0-9]+' | awk '{print $1}')
+
+    # Get all running Docker containers
+    containers=$(docker ps --format "{{.Names}}")
+
+    for container in $containers; do
+        # Get port mappings for each container
+        ports=$(docker port $container | awk '{print $3}' | cut -d ':' -f2)
+
+        for port in $ports; do
+            if echo "$ufw_rules" | grep -q "^$port$"; then
+                print_color "0;32" "${CHECK_MARK} Port $port for container $container is allowed by UFW."
+            else
+                print_color "0;31" "${CROSS_MARK} Port $port for container $container might be blocked by UFW."
+            fi
+        done
+    done
+
+    echo
+    print_color "0;33" "Note: Please manually verify UFW rules for more complex configurations."
+    echo "      You can do this by running 'sudo ufw status verbose'"
+}
+
 # Main execution
 if [[ "$1" == "simulated_test" ]]; then
     echo "Running in simulated test mode..."
@@ -303,7 +342,7 @@ elif [[ "$1" == "real_test" ]]; then
 else
     # Normal script execution
     # Display Welcome
-    print_header "BigBearCasaOS Healthcheck V3.0"
+    print_header "BigBearCasaOS Healthcheck V3.1"
     echo "Here are some links:"
     echo "https://community.bigbeartechworld.com"
     echo "https://github.com/BigBearTechWorld"
@@ -351,6 +390,9 @@ else
     else
         print_color "0;31" "${CROSS_MARK} Error: Configuration file not found."
     fi
+
+    # Docker port check
+    check_docker_ports
 
     # DNS resolution check for Docker registries
     check_dns_resolution
