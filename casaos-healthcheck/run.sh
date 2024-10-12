@@ -326,6 +326,20 @@ check_docker_ports() {
     echo "      You can do this by running 'sudo ufw status verbose'"
 }
 
+# Check for sudo privileges
+if [ "$EUID" -ne 0 ]; then
+    print_color "0;33" "${WARNING_MARK} This script may require sudo privileges for full functionality."
+    echo "Some checks might fail or provide incomplete information without sudo."
+    echo "Consider running the script with sudo if you encounter permission-related issues."
+    echo
+    read -p "Do you want to continue without sudo? (y/N) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "Exiting. Please run the script again with sudo."
+        exit 1
+    fi
+fi
+
 # Main execution
 if [[ "$1" == "simulated_test" ]]; then
     echo "Running in simulated test mode..."
@@ -342,7 +356,7 @@ elif [[ "$1" == "real_test" ]]; then
 else
     # Normal script execution
     # Display Welcome
-    print_header "BigBearCasaOS Healthcheck V3.1"
+    print_header "BigBearCasaOS Healthcheck V3.2"
     echo "Here are some links:"
     echo "https://community.bigbeartechworld.com"
     echo "https://github.com/BigBearTechWorld"
