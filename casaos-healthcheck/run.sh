@@ -326,18 +326,43 @@ check_docker_ports() {
     echo "      You can do this by running 'sudo ufw status verbose'"
 }
 
-# Check for sudo privileges
-if [ "$EUID" -ne 0 ]; then
-    print_color "0;33" "${WARNING_MARK} This script may require sudo privileges for full functionality."
-    echo "Some checks might fail or provide incomplete information without sudo."
-    echo "Consider running the script with sudo if you encounter permission-related issues."
-    echo
-    read -p "Do you want to continue without sudo? (y/N) " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "Exiting. Please run the script again with sudo."
-        exit 1
+check_root_privileges() {
+    if [ "$EUID" -ne 0 ]; then
+        print_color "0;33" "${WARNING_MARK} This script requires root privileges for full functionality."
+        echo "Some checks might fail or provide incomplete information without root access."
+        echo "Consider running the script with sudo if you encounter permission-related issues."
+        echo
+        read -p "Do you want to continue without root privileges? (y/N) " -n 1 -r
+        echo
+        REPLY=${REPLY,,} # convert to lowercase
+        if [[ $REPLY != "y" ]]; then
+            echo "Exiting. Please run the script again with sudo."
+            exit 1
+        fi
     fi
+}
+
+check_sudo_privileges() {
+    if ! sudo -n true 2>/dev/null; then
+        print_color "0;33" "${WARNING_MARK} You are running as root, but might not have full sudo privileges."
+        echo "Some checks might still fail or provide incomplete information."
+        echo
+        read -p "Do you want to continue? (y/N) " -n 1 -r
+        echo
+        REPLY=${REPLY,,} # convert to lowercase
+        if [[ $REPLY != "y" ]]; then
+            echo "Exiting. Please ensure you have full sudo privileges and run the script again."
+            exit 1
+        fi
+    fi
+}
+
+# Main script flow
+check_root_privileges
+
+# If running as root, optionally check for sudo
+if [ "$EUID" -eq 0 ]; then
+    check_sudo_privileges
 fi
 
 # Main execution
