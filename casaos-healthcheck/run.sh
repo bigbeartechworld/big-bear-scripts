@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Constants
 CONFIG_FILE="/etc/casaos/gateway.ini"
