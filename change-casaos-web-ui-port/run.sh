@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Ask the user for the new port number
 read -p "Enter the new port number for CasaOS: " new_port

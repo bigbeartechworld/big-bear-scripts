@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Define PostgreSQL connection parameters
 POSTGRES_CONTAINER="immich-postgres"

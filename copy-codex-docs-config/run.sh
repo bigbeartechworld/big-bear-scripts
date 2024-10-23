@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Default URL of the file to download
 default_url="https://raw.githubusercontent.com/codex-team/codex.docs/main/docs-config.yaml"

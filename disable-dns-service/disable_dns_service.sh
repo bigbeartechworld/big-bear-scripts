@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # This script modifies the DNS settings and disables systemd-resolved
 

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Function to list volumes and allow user selection
 select_and_remove_volumes() {

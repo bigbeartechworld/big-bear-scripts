@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Ask the user for the desired config location
 read -p "Enter the location to save the config (default: /DATA/AppData/big-bear-obsidian-livesync/data/local.ini): " location

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Function to install Edge Appstore
 installEdgeAppstore() {

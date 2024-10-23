@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Path where nextcloud directories are located
 APP_DIR="/var/lib/casaos/apps"

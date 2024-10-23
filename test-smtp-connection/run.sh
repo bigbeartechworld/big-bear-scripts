@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # This script sends an email using the telnet command.
 # The email details can be provided interactively or default values will be used.

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Prompt the user for the file path or use the default
 read -p "Enter the file path to save the configuration (default: /DATA/AppData/big-bear-adguard-home/data/conf): " file_path

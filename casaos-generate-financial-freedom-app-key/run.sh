@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Access the Docker container and run the command
 key=$(docker exec big-bear-financial-freedom php artisan key:generate --show)

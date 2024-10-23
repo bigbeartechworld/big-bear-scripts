@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Function to remove standalone Docker Compose if it exists
 remove_standalone_docker_compose() {

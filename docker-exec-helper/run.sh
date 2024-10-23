@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # List all running containers
 containers=$(docker ps --format "{{.Names}}")

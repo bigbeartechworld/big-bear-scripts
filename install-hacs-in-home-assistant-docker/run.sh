@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Check if Docker is installed by attempting to run the 'docker' command.
 # If Docker is not found, print an error message and exit the script.

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Define the path to the resolv.conf file
 resolv_conf="/etc/resolv.conf"

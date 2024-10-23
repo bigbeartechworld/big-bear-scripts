@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # List all Docker volumes
 echo "Here are all the available Docker volumes:"

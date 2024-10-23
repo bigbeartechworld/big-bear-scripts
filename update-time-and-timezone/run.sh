@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 echo "---------------------"
 echo "Big Bear Update Time and Timezone Script"
