@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # This script allows the user to reset their CasaOS username and password.
 
 # Function to print headers

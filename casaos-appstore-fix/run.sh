@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # URLs for the app stores
 NEW_APP_STORE_URL="https://github.com/IceWhaleTech/CasaOS-AppStore/archive/19b9149ce0bd50ffb8c898e283dc441605a3a369.zip"

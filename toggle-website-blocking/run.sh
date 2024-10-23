@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Display Welcome message with links and support information
 echo "-------------------"

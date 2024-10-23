@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Log file
 LOGFILE="./casaos_reinstall.log"

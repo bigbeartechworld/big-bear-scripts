@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # This script attempts to find the server's primary IP address.
 # It first tries using 'ifconfig' and then falls back to 'ip addr' if 'ifconfig' doesn't produce a result.

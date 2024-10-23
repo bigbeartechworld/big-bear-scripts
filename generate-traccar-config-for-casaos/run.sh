@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # This script runs a Docker command to retrieve the traccar.xml configuration file
 # from a specified traccar Docker image tag and save it to a specified location on the host's system.

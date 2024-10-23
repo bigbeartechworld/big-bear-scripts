@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Path to the configuration file
 CONFIG_FILE="/etc/casaos/gateway.ini"

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Define a message for branding purposes
 MESSAGE="Made by BigBearTechWorld"

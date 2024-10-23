@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Get the IP address
 CURRENT_IP=$(hostname -I | awk '{print $1}')

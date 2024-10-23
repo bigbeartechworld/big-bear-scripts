@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Function to list available USB devices with paths and names
 list_usb_devices() {

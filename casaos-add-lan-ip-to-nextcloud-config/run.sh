@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Get the LAN IP address
 lan_ip=$(hostname -I | awk '{print $1}')

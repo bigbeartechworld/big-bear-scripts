@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Define the apps directory
 APPS_DIR="/var/lib/casaos/apps"

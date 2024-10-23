@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 CONFIG_PATH="/DATA/AppData/frigate/config/config.yml"
 

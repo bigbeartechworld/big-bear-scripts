@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # This script restores the original DNS settings and re-enables systemd-resolved
 

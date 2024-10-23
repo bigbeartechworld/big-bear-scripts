@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 LOG_FILE="pterodactyl_panel_log.txt"
 CONTAINER_ID="pterodactyl-panel"
