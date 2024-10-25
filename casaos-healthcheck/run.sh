@@ -381,6 +381,25 @@ check_dmesg_errors() {
     fi
 }
 
+check_process_resources() {
+    print_header "Process Resource Check"
+    
+    echo "Top 5 CPU consuming processes:"
+    ps aux --sort=-%cpu | head -6 | tail -5 | \
+        awk '{printf "%-20s %5s%%\n", $11, $3}'
+    
+    echo -e "\nTop 5 Memory consuming processes:"
+    ps aux --sort=-%mem | head -6 | tail -5 | \
+        awk '{printf "%-20s %5s%%\n", $11, $4}'
+    
+    local zombie_count=$(ps aux | grep -w Z | wc -l)
+    if [ "$zombie_count" -gt 0 ]; then
+        print_color "0;31" "${CROSS_MARK} Found $zombie_count zombie processes"
+    else
+        print_color "0;32" "${CHECK_MARK} No zombie processes found"
+    fi
+}
+
 # Main script flow
 check_root_privileges
 
@@ -479,6 +498,7 @@ else
     check_system_temperature
     check_system_updates
     check_dmesg_errors
+    check_process_resources
 
     print_header "Health Check Complete"
 fi
