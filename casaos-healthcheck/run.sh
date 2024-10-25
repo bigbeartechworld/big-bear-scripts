@@ -400,6 +400,306 @@ check_process_resources() {
     fi
 }
 
+check_network_interfaces() {
+    print_header "Network Interface Check"
+    
+    for interface in $(ip -o link show | awk -F': ' '{print $2}'); do
+        # Skip loopback
+        [[ "$interface" == "lo" ]] && continue
+        
+        # Check link status
+        local state=$(ip link show $interface | grep -oP 'state \K\w+')
+        local speed=$(ethtool $interface 2>/dev/null | grep "Speed:" | awk '{print $2}')
+        local errors=$(ip -s link show $interface | awk '/errors/{print $2}')
+        local drops=$(ip -s link show $interface | awk '/drops/{print $2}')
+        
+        if [[ "$state" == "UP" ]]; then
+            print_color "0;32" "${CHECK_MARK} Interface $interface is UP"
+            [[ -n "$speed" ]] && echo "Speed: $speed"
+        else
+            print_color "0;31" "${CROSS_MARK} Interface $interface is DOWN"
+        fi
+        
+        if [[ "$errors" != "0" || "$drops" != "0" ]]; then
+            print_color "0;33" "${WARNING_MARK} $interface has $errors errors and $drops drops"
+        fi
+    done
+}
+
+check_network_latency() {
+    print_header "Network Latency Check"
+    local targets=("8.8.8.8" "1.1.1.1" "google.com")
+    
+    for target in "${targets[@]}"; do
+        local ping_result=$(ping -c 3 $target 2>/dev/null | tail -1 | awk '{print $4}' | cut -d '/' -f 2)
+        if [ -n "$ping_result" ]; then
+            if (( $(awk "BEGIN {print ($ping_result > 100) ? 1 : 0}") )); then
+                print_color "0;31" "${CROSS_MARK} High latency to $target: ${ping_result}ms"
+            else
+                print_color "0;32" "${CHECK_MARK} Good latency to $target: ${ping_result}ms"
+            fi
+        fi
+    done
+}
+
+check_filesystem_health() {
+    print_header "File System Health Check"
+    
+    # Check inode usage
+    df -i | grep -v "Filesystem" | while read line; do
+        local fs=$(echo $line | awk '{print $1}')
+        local inode_usage=$(echo $line | awk '{print $5}' | sed 's/%//g')
+        
+        # Skip if inode usage is not a number
+        if [[ "$inode_usage" =~ ^[0-9]+$ ]]; then
+            if [ "$inode_usage" -gt 80 ]; then
+                print_color "0;31" "${CROSS_MARK} High inode usage on $fs: $inode_usage%"
+            else
+                print_color "0;32" "${CHECK_MARK} Inode usage on $fs: $inode_usage%"
+            fi
+        fi
+    done
+    
+    # Check mount points
+    mount | grep -E 'ext4|xfs|btrfs|zfs' | while read line; do
+        local mount_point=$(echo $line | awk '{print $3}')
+        if touch "$mount_point"/.test_write 2>/dev/null; then
+            rm "$mount_point"/.test_write
+            print_color "0;32" "${CHECK_MARK} Mount point $mount_point is writable"
+        else
+            print_color "0;31" "${CROSS_MARK} Mount point $mount_point is not writable"
+        fi
+    done
+}
+
+check_time_sync() {
+    print_header "Time Synchronization Check"
+    
+    if command -v timedatectl &>/dev/null; then
+        local ntp_status=$(timedatectl | grep "NTP synchronized")
+        if [[ $ntp_status == *"yes"* ]]; then
+            print_color "0;32" "${CHECK_MARK} NTP is synchronized"
+        else
+            print_color "0;31" "${CROSS_MARK} NTP is not synchronized"
+        fi
+        
+        local time_status=$(timedatectl status --no-pager)
+        echo "System time status:"
+        echo "$time_status"
+    else
+        if command -v ntpq &>/dev/null; then
+            local ntp_peers=$(ntpq -p)
+            echo "NTP peers status:"
+            echo "$ntp_peers"
+        else
+            print_color "0;33" "${WARNING_MARK} No time synchronization service found"
+        fi
+    fi
+}
+
+check_log_rotation() {
+    print_header "Log Rotation Check"
+    
+    local log_dirs=("/var/log" "/var/log/casaos")
+    local max_log_size=$((100 * 1024 * 1024)) # 100MB
+    
+    for dir in "${log_dirs[@]}"; do
+        if [ -d "$dir" ]; then
+            echo "Checking logs in $dir:"
+            find "$dir" -type f -name "*.log" -o -name "*.gz" | while read log; do
+                local size=$(stat -f%z "$log" 2>/dev/null || stat -c%s "$log")
+                if [ "$size" -gt "$max_log_size" ]; then
+                    print_color "0;31" "${CROSS_MARK} Large log file: $log ($(numfmt --to=iec-i --suffix=B $size))"
+                fi
+            done
+        fi
+    done
+    
+    if [ -f "/etc/logrotate.d/casaos" ]; then
+        print_color "0;32" "${CHECK_MARK} CasaOS log rotation configured"
+    else
+        print_color "0;33" "${WARNING_MARK} No CasaOS log rotation configuration found"
+    fi
+}
+
+check_security_audit() {
+    print_header "Security Audit Check"
+    
+    # Check SSH configuration
+    if [ -f "/etc/ssh/sshd_config" ]; then
+        local root_login=$(grep "^PermitRootLogin" /etc/ssh/sshd_config)
+        local password_auth=$(grep "^PasswordAuthentication" /etc/ssh/sshd_config)
+        
+        [[ "$root_login" == *"no"* ]] && \
+            print_color "0;32" "${CHECK_MARK} Root SSH login disabled" || \
+            print_color "0;31" "${CROSS_MARK} Root SSH login enabled"
+            
+        [[ "$password_auth" == *"no"* ]] && \
+            print_color "0;32" "${CHECK_MARK} SSH password authentication disabled" || \
+            print_color "0;31" "${CROSS_MARK} SSH password authentication enabled"
+    fi
+    
+    # Check failed login attempts
+    if [ -f "/var/log/auth.log" ]; then
+        local failed_attempts=$(grep "Failed password" /var/log/auth.log | wc -l)
+        if [ "$failed_attempts" -gt 0 ]; then
+            print_color "0;33" "${WARNING_MARK} Found $failed_attempts failed login attempts"
+        fi
+    fi
+    
+    # Check listening ports
+    echo "Open ports:"
+    netstat -tuln | grep LISTEN
+}
+
+check_memory_pressure() {
+    print_header "Memory Pressure Check"
+    
+    # Check swap usage and configuration
+    local swap_total=$(free -m | awk '/Swap:/ {print $2}')
+    local swap_used=$(free -m | awk '/Swap:/ {print $3}')
+    local swappiness=$(cat /proc/sys/vm/swappiness)
+    
+    echo "Swap Configuration:"
+    if [ "$swap_total" -eq 0 ]; then
+        print_color "0;33" "${WARNING_MARK} No swap space configured"
+    else
+        local swap_percent=$((swap_used * 100 / swap_total))
+        if [ "$swap_percent" -gt 80 ]; then
+            print_color "0;31" "${CROSS_MARK} High swap usage: ${swap_percent}%"
+        else
+            print_color "0;32" "${CHECK_MARK} Swap usage: ${swap_percent}%"
+        fi
+    fi
+    echo "Swappiness value: $swappiness"
+    
+    # Check memory pressure stats if available
+    if [ -f "/proc/pressure/memory" ]; then
+        echo -e "\nMemory Pressure Statistics:"
+        local pressure=$(cat /proc/pressure/memory)
+        echo "$pressure"
+        
+        # Extract 10 second average and convert to integer
+        local avg10=$(echo "$pressure" | grep "avg10=" | cut -d= -f2 | cut -d" " -f1 | awk '{printf "%d", $1}')
+        if (( $(awk "BEGIN {print ($avg10 > 50) ? 1 : 0}") )); then
+            print_color "0;31" "${CROSS_MARK} High memory pressure detected"
+        else
+            print_color "0;32" "${CHECK_MARK} Normal memory pressure"
+        fi
+    fi
+}
+
+check_docker_containers_health() {
+    print_header "Docker Container Health Check"
+    
+    if ! command -v docker &>/dev/null; then
+        print_color "0;33" "${WARNING_MARK} Docker not installed"
+        return
+    fi
+
+    # Get all containers including stopped ones
+    local containers=$(docker ps -a --format "{{.Names}}")
+    
+    for container in $containers; do
+        echo "Container: $container"
+        
+        # Check container status
+        local status=$(docker inspect --format='{{.State.Status}}' "$container")
+        local health=$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}no health check{{end}}' "$container")
+        local restarts=$(docker inspect --format='{{.RestartCount}}' "$container")
+        
+        # Get resource usage
+        local cpu=$(docker stats --no-stream --format "{{.CPUPerc}}" "$container")
+        local mem=$(docker stats --no-stream --format "{{.MemPerc}}" "$container")
+        
+        case $status in
+            "running")
+                print_color "0;32" "${CHECK_MARK} Status: Running"
+                ;;
+            "exited")
+                print_color "0;31" "${CROSS_MARK} Status: Stopped"
+                ;;
+            *)
+                print_color "0;33" "${WARNING_MARK} Status: $status"
+                ;;
+        esac
+        
+        echo "Health: $health"
+        echo "Restart Count: $restarts"
+        echo "CPU Usage: $cpu"
+        echo "Memory Usage: $mem"
+        echo "---"
+    done
+}
+
+check_system_limits() {
+    print_header "System Resource Limits Check"
+    
+    local max_files=$(ulimit -n)
+    local max_processes=$(ulimit -u)
+    
+    echo "File descriptor limit: $max_files"
+    echo "Max user processes: $max_processes"
+    
+    if [ "$max_files" -lt 65535 ]; then
+        print_color "0;33" "${WARNING_MARK} Low file descriptor limit"
+    fi
+    
+    if [ "$max_processes" -lt 4096 ]; then
+        print_color "0;33" "${WARNING_MARK} Low process limit"
+    fi
+}
+
+generate_health_report() {
+    print_header "Health Check Summary Report"
+    
+    # Initialize arrays for different severity levels
+    declare -a critical_issues=()
+    declare -a warnings=()
+    
+    # Collect issues from previous checks
+    if $ERROR_FOUND; then
+        critical_issues+=("Service log errors detected")
+    fi
+    
+    # Add disk space issues
+    local disk_usage=$(df / | grep / | awk '{ print $5 }' | sed 's/%//g')
+    if [ "$disk_usage" -ge 80 ]; then
+        critical_issues+=("High disk usage: ${disk_usage}%")
+    fi
+    
+    # Add memory pressure issues
+    local mem_used=$(free -m | awk '/^Mem:/ { print $3 }')
+    local mem_total=$(free -m | awk '/^Mem:/ { print $2 }')
+    if [ $((mem_used * 100 / mem_total)) -gt 80 ]; then
+        critical_issues+=("High memory usage")
+    fi
+    
+    # Add Docker status issues
+    if ! docker info &>/dev/null; then
+        critical_issues+=("Docker service is not running")
+    fi
+    
+    # Display report
+    if [ ${#critical_issues[@]} -gt 0 ]; then
+        print_color "0;31" "Critical Issues Found:"
+        for issue in "${critical_issues[@]}"; do
+            echo "- $issue"
+        done
+    fi
+    
+    if [ ${#warnings[@]} -gt 0 ]; then
+        print_color "0;33" "Warnings:"
+        for warning in "${warnings[@]}"; do
+            echo "- $warning"
+        done
+    fi
+    
+    if [ ${#critical_issues[@]} -eq 0 ] && [ ${#warnings[@]} -eq 0 ]; then
+        print_color "0;32" "${CHECK_MARK} No significant issues found"
+    fi
+}
+
 # Main script flow
 check_root_privileges
 
@@ -499,6 +799,17 @@ else
     check_system_updates
     check_dmesg_errors
     check_process_resources
+    check_network_interfaces
+    check_network_latency
+    check_filesystem_health
+    check_time_sync
+    check_log_rotation
+    check_security_audit
+    check_memory_pressure
+    check_system_limits
+    check_docker_containers_health
+
+    generate_health_report
 
     print_header "Health Check Complete"
 fi
