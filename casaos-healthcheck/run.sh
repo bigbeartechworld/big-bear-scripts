@@ -357,6 +357,30 @@ check_sudo_privileges() {
     fi
 }
 
+# Function to check dmesg logs for errors
+check_dmesg_errors() {
+    print_header "DMESG Error Check"
+    
+    # Direct check if we can read dmesg output
+    local dmesg_output=$(dmesg 2>/dev/null)
+    if [ -n "$dmesg_output" ]; then
+        local dmesg_errors=$(echo "$dmesg_output" | tail -n 1000 | grep -i "error\|failed\|failure\|panic\|critical" | grep -v "ACPI Error: AE_NOT_FOUND")
+        
+        if [ -n "$dmesg_errors" ]; then
+            print_color "0;31" "${CROSS_MARK} Found system errors in dmesg:"
+            echo "$dmesg_errors" | head -n 10
+            local error_count=$(echo "$dmesg_errors" | wc -l)
+            if [ $error_count -gt 10 ]; then
+                echo "... and $(($error_count - 10)) more errors"
+            fi
+        else
+            print_color "0;32" "${CHECK_MARK} No critical errors found in dmesg logs"
+        fi
+    else
+        print_color "0;33" "${WARNING_MARK} Root privileges required to read dmesg logs. Run with sudo for full dmesg analysis."
+    fi
+}
+
 # Main script flow
 check_root_privileges
 
@@ -381,7 +405,7 @@ elif [[ "$1" == "real_test" ]]; then
 else
     # Normal script execution
     # Display Welcome
-    print_header "BigBearCasaOS Healthcheck V3.2"
+    print_header "BigBearCasaOS Healthcheck V3.3"
     echo "Here are some links:"
     echo "https://community.bigbeartechworld.com"
     echo "https://github.com/BigBearTechWorld"
@@ -454,6 +478,7 @@ else
     check_memory_usage
     check_system_temperature
     check_system_updates
+    check_dmesg_errors
 
     print_header "Health Check Complete"
 fi
