@@ -8,7 +8,6 @@ This script helps you update the root/admin password for running database contai
 - Supports PostgreSQL, MySQL, and MariaDB
 - Interactive container selection
 - Secure password input
-- Updates both database password and .env file
 
 ## How to use?
 

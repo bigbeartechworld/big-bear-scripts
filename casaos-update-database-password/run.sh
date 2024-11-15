@@ -126,15 +126,6 @@ elif [[ $container == *"mysql"* ]] || [[ $container == *"mariadb"* ]]; then
     docker exec -it $container mysql -u root -pDB_PASSWORD_CHANGEME -e "ALTER USER 'root'@'%' IDENTIFIED BY '$NEW_PASSWORD';"
 fi
 
-# Check if .env file exists
-if [ -f .env ]; then
-    echo "Updating .env file..."
-    sed -i "s/DB_PASSWORD_CHANGEME/$NEW_PASSWORD/g" .env
-    echo "Environment file updated successfully"
-else
-    echo "Warning: .env file not found in current directory"
-fi
-
 # Ask if user wants to edit docker-compose file
 echo -e "\nWould you like to edit the docker-compose file? (y/n)"
 read -r edit_choice
