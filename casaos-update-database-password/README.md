@@ -1,6 +1,6 @@
 ## Why?
 
-This script helps you update the root/admin password for running database containers (PostgreSQL, MySQL, or MariaDB) and automatically updates the corresponding .env file.
+This script helps you update the root/admin password for running database containers (PostgreSQL, MySQL, or MariaDB).
 
 ## Features
 
