@@ -13,7 +13,7 @@ NC='\033[0m' # No Color
 # Function to print header
 print_header() {
     echo "================================================"
-    echo -e "${GREEN}Debian Docker Disk Recovery Tool v1.0.0${NC}"
+    echo -e "${GREEN}Big Bear Debian Docker Disk Recovery Tool v1.0.0${NC}"
     echo -e "${YELLOW}Support: https://ko-fi.com/bigbeartechworld${NC}"
     echo "================================================"
     echo "Here are some links:"
