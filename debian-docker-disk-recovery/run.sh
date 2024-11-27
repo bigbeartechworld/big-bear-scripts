@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Debian Docker Disk Recovery Tool v1.0.0
+# Big Bear Debian Docker Disk Recovery Tool v1.0.0
 # Run with sudo permissions
 # Support: https://ko-fi.com/bigbeartechworld
 
