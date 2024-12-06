@@ -28,6 +28,27 @@ show_menu() {
     echo ""
 }
 
+# Function to get file size in human readable format
+get_size() {
+    local size
+    size=$(du -sh "$1" 2>/dev/null | cut -f1)
+    echo "${size:-0B}"
+}
+
+# Function to confirm action
+confirm_action() {
+    local message="$1"
+    local response
+    
+    echo -e "\n${YELLOW}$message${NC} (y/n): "
+    read -r response
+    
+    case "$response" in
+        [yY]|[yY][eE][sS]) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 # Set source directory to current directory if not provided
 SOURCE_DIR="${1:-.}"
 
@@ -49,9 +70,11 @@ display_items() {
     
     # Store items in an array
     items=()
+    sizes=()
     while IFS= read -r item; do
         items+=("$item")
-        echo -e "${YELLOW}$i)${NC} $item"
+        sizes+=("$(get_size "$dir/$item")")
+        echo -e "${YELLOW}$i)${NC} $item (${sizes[$((i-1))]})"
         ((i++))
     done < <(ls -A "$dir")
 }
@@ -59,7 +82,13 @@ display_items() {
 # Function to get selected items
 get_selections() {
     local selections=()
+    local selection_sizes=()
     local done=false
+    local exclude_pattern=""
+    
+    # Ask for exclude pattern
+    echo -e "\n${GREEN}Enter file patterns to exclude (e.g., '*.tmp *.log', or press Enter for none):${NC}"
+    read -r exclude_pattern
     
     while [ "$done" = false ]; do
         echo -e "\nEnter the numbers of items you want to sync (space-separated)"
@@ -78,6 +107,7 @@ get_selections() {
             "a")
                 echo "Selected all items"
                 selections=("${items[@]}")
+                selection_sizes=("${sizes[@]}")
                 done=true
                 ;;
             "")
@@ -89,10 +119,12 @@ get_selections() {
                 ;;
             *)
                 selections=()
+                selection_sizes=()
                 valid_selections=true
                 for num in $input; do
                     if [[ "$num" =~ ^[0-9]+$ ]] && [ "$num" -ge 1 ] && [ "$num" -le ${#items[@]} ]; then
                         selections+=("${items[$((num-1))]}")
+                        selection_sizes+=("${sizes[$((num-1))]}")
                     else
                         echo -e "${RED}Invalid selection: $num${NC}"
                         valid_selections=false
@@ -108,7 +140,12 @@ get_selections() {
     
     show_menu
     echo -e "\n${GREEN}Selected items:${NC}"
-    printf '%s\n' "${selections[@]}"
+    local total_count=${#selections[@]}
+    echo -e "${YELLOW}Total files/directories: $total_count${NC}"
+    
+    for i in "${!selections[@]}"; do
+        echo "${selections[$i]} (${selection_sizes[$i]})"
+    done
     
     # Ask for destination
     echo -e "\n${GREEN}Enter destination path:${NC}"
@@ -123,11 +160,41 @@ get_selections() {
     # Create destination if it doesn't exist
     mkdir -p "$destination"
     
+    # Confirm transfer
+    if ! confirm_action "Start transfer of $total_count items to $destination?"; then
+        echo -e "${YELLOW}Transfer cancelled${NC}"
+        exit 0
+    fi
+    
+    # Prepare rsync exclude options
+    local exclude_opts=""
+    if [ -n "$exclude_pattern" ]; then
+        for pattern in $exclude_pattern; do
+            exclude_opts="$exclude_opts --exclude='$pattern'"
+        done
+    fi
+    
     # Perform rsync for each selected item
+    local success_count=0
+    local failed_items=()
+    
     for item in "${selections[@]}"; do
         echo -e "\n${GREEN}Syncing: $item${NC}"
-        rsync -av --info=progress2 "$SOURCE_DIR/$item" "$destination/"
+        if eval rsync -av --info=progress2 $exclude_opts \""$SOURCE_DIR/$item"\" \""$destination/"\"; then
+            ((success_count++))
+        else
+            failed_items+=("$item")
+        fi
     done
+    
+    # Show summary
+    echo -e "\n${GREEN}Transfer Summary:${NC}"
+    echo -e "Successfully transferred: $success_count/$total_count"
+    
+    if [ ${#failed_items[@]} -gt 0 ]; then
+        echo -e "\n${RED}Failed transfers:${NC}"
+        printf '%s\n' "${failed_items[@]}"
+    fi
 }
 
 # Main execution
