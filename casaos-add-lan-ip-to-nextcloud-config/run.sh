@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Get the LAN IP address
-lan_ip=$(hostname -I | awk '{print $1}')
+lan_ip=$(hostname -i | awk '{print $1}')
 
 # Backup the original config.php file
 cp /DATA/AppData/big-bear-nextcloud/html/config/config.php /DATA/AppData/big-bear-nextcloud/html/config/config.php.bak
