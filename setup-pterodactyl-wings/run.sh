@@ -23,9 +23,24 @@ print_header() {
     echo "-------------------"
 }
 
+# Function to show spinner for long-running operations
+show_spinner() {
+    local pid=$1
+    local delay=0.1
+    local spinstr='|/-\'
+    while ps -p $pid > /dev/null; do
+        for i in "${spinstr[@]}"; do
+            printf "\r[%c] " "$i"
+            sleep $delay
+            printf "\b\b\b\b"
+        done
+    done
+    printf "\r   \b\b\b"
+}
+
 # Input validation: Check if exactly one argument (UUID) is provided
 if [ $# -ne 1 ]; then
-   echo "Error: UUID argument is required"
+   echo -e "${CROSS_MARK} Error: UUID argument is required"
    echo "Usage: $0 <uuid>"
    exit 1
 fi
@@ -53,28 +68,29 @@ read -p "Enter your choice (1 or 2): " choice
 # Mission is a go 3 2 1 lift off!!!!
 case $choice in
     1)
-        echo "Running full setup..."
+        echo -e "${CHECK_MARK} Selected: Full setup"
         ;;
     2)
-        # Quick setup option: Only create directories and set permissions
-        echo "Creating required directories..."
+        echo -e "${CHECK_MARK} Selected: Quick setup"
+        echo -e "\n${WARNING_MARK} Creating required directories..."
         mkdir -p "/var/lib/pterodactyl/volumes"
         mkdir -p "/tmp/pterodactyl"
         mkdir -p "/etc/pterodactyl"
         mkdir -p "/var/log/pterodactyl"
-        echo "Running chown commands only..."
-        chown -R 988:988 /tmp/pterodactyl /etc/pterodactyl /var/log/pterodactyl /var/lib/pterodactyl
-        echo "Chown commands completed."
+        echo -e "${WARNING_MARK} Running chown commands..."
+        (chown -R 988:988 /tmp/pterodactyl /etc/pterodactyl /var/log/pterodactyl /var/lib/pterodactyl) &
+        show_spinner $!
+        echo -e "${CHECK_MARK} Chown commands completed successfully."
         exit 0
         ;;
     *)
-        echo "Invalid choice. Please run the script again and select 1 or 2."
+        echo -e "${CROSS_MARK} Invalid choice. Please run the script again and select 1 or 2."
         exit 1
         ;;
 esac
 
 # Running full setup ---->
-echo "Running full setup..."
+echo -e "\n${WARNING_MARK} Initiating full setup process..."
 
 # Function to check if a subnet is already in use by either system routes or Docker networks
 # Parameters: 
@@ -224,9 +240,10 @@ configure_network() {
    # Check return status of find_available_subnet
    # $? contains the return value of the last command
    if [ $? -ne 0 ]; then
-       echo "ERROR: Could not find available subnet"
-       return 1  # Exit function with error
+       echo -e "${CROSS_MARK} ERROR: Could not find available subnet"
+       return 1
    fi
+   echo -e "${CHECK_MARK} Found available subnet: $new_subnet"
 
    # Step 2: Calculate the gateway IP address for our subnet
    # Store in local variable for safety
@@ -241,7 +258,7 @@ configure_network() {
    fi
 
    # Echo results
-   echo "Using subnet: $new_subnet with gateway: $new_gateway"
+   echo -e "${CHECK_MARK} Gateway IP set to: $new_gateway"
 
    # Step 3: Create the Docker network
    # Use ! to invert the return value since we want to check for failure
@@ -250,6 +267,7 @@ configure_network() {
        echo "ERROR: Failed to create network"
        return 1  # Exit function with error
    fi
+   echo -e "${CHECK_MARK} Docker network created successfully"
 
    # If we get here, all steps completed successfully Woohooo!!!
    echo "Network created successfully"
@@ -257,29 +275,29 @@ configure_network() {
 }
 
 # Create directory structure for Pterodactyl
-echo "Creating required directories..."
+echo -e "\n${WARNING_MARK} Creating required directories..."
 mkdir -p "/var/lib/pterodactyl/volumes/$UUID"
 mkdir -p "/tmp/pterodactyl/$UUID"
 mkdir -p "/etc/pterodactyl"
 mkdir -p "/var/log/pterodactyl"
 
 # Set up network configuration for Pterodactyl
-echo "Configuring network..."
+echo -e "\n${WARNING_MARK} Configuring network..."
 if ! configure_network; then
     echo "ERROR: Network configuration failed"
     exit 1
 fi
 
 # Set appropriate ownership for Pterodactyl directories
-echo "Setting directory permissions..."
+echo -e "\n${WARNING_MARK} Setting directory permissions..."
 chown -R 988:988 /tmp/pterodactyl /etc/pterodactyl /var/log/pterodactyl /var/lib/pterodactyl
 
 # Restart the Pterodactyl wings service
-echo "Restarting pterodactyl-wings container..."
+echo -e "\n${WARNING_MARK} Restarting pterodactyl-wings container..."
 if ! docker restart pterodactyl-wings; then
-    echo "WARNING: Failed to restart pterodactyl-wings container"
+    echo -e "${CROSS_MARK} WARNING: Failed to restart pterodactyl-wings container"
     echo "Please restart it manually using: docker restart pterodactyl-wings"
 fi
 
 # Mission is complete
-echo "Setup completed successfully for UUID: $UUID"
+echo -e "\n${CHECK_MARK} Setup completed successfully for UUID: $UUID"
