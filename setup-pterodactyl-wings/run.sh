@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Crafted by BigBearTechWorld
 # Script to set up Pterodactyl server environment and networking
