@@ -9,6 +9,34 @@ fi
 
 UUID=$1
 
+# Display menu for user choice
+echo "Please select an option:"
+echo "1) Run full setup"
+echo "2) Run chown commands only"
+read -p "Enter your choice (1 or 2): " choice
+
+case $choice in
+    1)
+        echo "Running full setup..."
+        ;;
+    2)
+        # Create required directories
+        echo "Creating required directories..."
+        mkdir -p "/var/lib/pterodactyl/volumes"
+        mkdir -p "/tmp/pterodactyl"
+        mkdir -p "/etc/pterodactyl"
+        mkdir -p "/var/log/pterodactyl"
+        echo "Running chown commands only..."
+        chown -R 988:988 /tmp/pterodactyl /etc/pterodactyl /var/log/pterodactyl /var/lib/pterodactyl
+        echo "Chown commands completed."
+        exit 0
+        ;;
+    *)
+        echo "Invalid choice. Please run the script again and select 1 or 2."
+        exit 1
+        ;;
+esac
+
 # Function to check if a subnet is in use
 is_subnet_in_use() {
     local subnet=$1
