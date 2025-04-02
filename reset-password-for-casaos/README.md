@@ -1,3 +1,7 @@
+# Video
+
+[![Watch the video](https://img.youtube.com/vi/m0Rsu9h7Z44/0.jpg)](https://youtu.be/m0Rsu9h7Z44)
+
 # Run command
 
 ```bash
