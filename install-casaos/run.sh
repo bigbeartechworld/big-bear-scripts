@@ -54,7 +54,7 @@ Check_SSL_Certificate() {
   else
     echo "Certificate for get.casaos.io validation failed. Will bypass certificate verification."
     NEED_SSL_BYPASS=true
-    
+
     # Security warning prompt
     echo -e "\e[91m"
     echo "╔════════════════════════ SECURITY WARNING ════════════════════════╗"
@@ -71,7 +71,7 @@ Check_SSL_Certificate() {
     echo "║                                                                  ║"
     echo "╚══════════════════════════════════════════════════════════════════╝"
     echo -e "\e[0m"
-    
+
     # Require explicit user confirmation
     read -p "Do you understand and accept these risks? (yes/no): " confirmation
     if [[ "${confirmation,,}" != "yes" ]]; then
@@ -88,13 +88,13 @@ fi
 
 # shellcheck disable=SC2016
 echo '
-   _____                 ____   _____ 
+   _____                 ____   _____
   / ____|               / __ \ / ____|
- | |     __ _ ___  __ _| |  | | (___  
- | |    / _` / __|/ _` | |  | |\___ \ 
+ | |     __ _ ___  __ _| |  | | (___
+ | |    / _` / __|/ _` | |  | |\___ \
  | |___| (_| \__ \ (_| | |__| |____) |
-  \_____\__,_|___/\__,_|\____/|_____/ 
-                                      
+  \_____\__,_|___/\__,_|\____/|_____/
+
    --- Made by IceWhale with YOU ---
 '
 export PATH=/usr/sbin:$PATH
@@ -286,7 +286,7 @@ Check_Arch() {
 "${CASA_DOWNLOAD_DOMAIN}IceWhaleTech/CasaOS/releases/download/v0.4.15/linux-${TARGET_ARCH}-casaos-v0.4.15.tar.gz"
 "${CASA_DOWNLOAD_DOMAIN}IceWhaleTech/CasaOS-CLI/releases/download/v0.4.4-3-alpha1/linux-${TARGET_ARCH}-casaos-cli-v0.4.4-3-alpha1.tar.gz"
 "${CASA_DOWNLOAD_DOMAIN}IceWhaleTech/CasaOS-UI/releases/download/v0.4.20/linux-all-casaos-v0.4.20.tar.gz"
-"${CASA_DOWNLOAD_DOMAIN}IceWhaleTech/CasaOS-AppStore/releases/download/v0.4.5/linux-all-appstore-v0.4.5.tar.gz" 
+"${CASA_DOWNLOAD_DOMAIN}IceWhaleTech/CasaOS-AppStore/releases/download/v0.4.5/linux-all-appstore-v0.4.5.tar.gz"
     )
 }
 
@@ -298,7 +298,7 @@ CASA_SERVICES=(
 "casaos-local-storage.service"
 "casaos-app-management.service"
 "rclone.service"
-"casaos.service"  # must be the last one so update from UI can work 
+"casaos.service"  # must be the last one so update from UI can work
 )
 
 # 2 Check Distribution
@@ -548,7 +548,7 @@ Install_rclone_from_source() {
   # Use official installer when certificates are valid, otherwise use direct download
   if [[ "$NEED_SSL_BYPASS" != true ]]; then
     Show 2 "Using official Rclone installer..."
-    
+
     ${sudo_cmd} wget -qO ./install.sh https://rclone.org/install.sh
     if [[ "${REGION}" = "China" ]] || [[ "${REGION}" = "CN" ]]; then
       sed -i 's/downloads.rclone.org/casaos.oss-cn-shanghai.aliyuncs.com/g' ./install.sh
@@ -565,14 +565,14 @@ Install_rclone_from_source() {
     # Directly download and install when certificate issues exist
     Install_rclone_direct_download
   fi
-  
+
   Show 0 "Rclone v1.61.1 installed successfully."
 }
 
 # Direct download method for environments with certificate issues
 Install_rclone_direct_download() {
   Show 2 "Downloading and installing Rclone directly..."
-  
+
   # Determine the system architecture for rclone download
   RCLONE_ARCH=""
   case $UNAME_M in
@@ -590,11 +590,11 @@ Install_rclone_direct_download() {
       exit 1
       ;;
   esac
-  
+
   # Create a temporary directory for rclone
   RCLONE_TMP_DIR=$(mktemp -d)
   cd "${RCLONE_TMP_DIR}" || Show 1 "Failed to create temporary directory for Rclone"
-  
+
   # Download rclone
   ${sudo_cmd} wget --no-check-certificate -q --show-progress https://downloads.rclone.org/v1.61.1/rclone-v1.61.1-linux-${RCLONE_ARCH}.zip || {
     Show 1 "Failed to download Rclone"
@@ -602,20 +602,20 @@ Install_rclone_direct_download() {
     ${sudo_cmd} rm -rf "${RCLONE_TMP_DIR}"
     exit 1
   }
-  
+
   # Unzip and install
   ${sudo_cmd} unzip -q rclone-v1.61.1-linux-${RCLONE_ARCH}.zip || Show 1 "Failed to extract Rclone"
   cd "rclone-v1.61.1-linux-${RCLONE_ARCH}" || Show 1 "Failed to enter Rclone directory"
-  
+
   # Install binary
   ${sudo_cmd} cp rclone /usr/bin/
   ${sudo_cmd} chmod 755 /usr/bin/rclone
-  
+
   # Install manpage
   ${sudo_cmd} mkdir -p /usr/local/share/man/man1
   ${sudo_cmd} cp rclone.1 /usr/local/share/man/man1/
   ${sudo_cmd} mandb -q
-  
+
   # Create rclone service file if it doesn't exist
   if [[ ! -f /etc/systemd/system/rclone.service ]]; then
     ${sudo_cmd} tee /etc/systemd/system/rclone.service > /dev/null << 'EOT'
@@ -634,7 +634,7 @@ User=root
 WantedBy=multi-user.target
 EOT
   fi
-  
+
   # Clean up
   cd - || exit 1
   ${sudo_cmd} rm -rf "${RCLONE_TMP_DIR}"
@@ -740,7 +740,7 @@ DownloadAndInstallCasaOS() {
             ColorReset
         fi
     done
-    
+
     MIGRATION_SCRIPT_DIR=$(realpath -e "${BUILD_DIR}"/scripts/migration/script.d || Show 1 "Failed to find migration script directory")
 
     for MIGRATION_SCRIPT in "${MIGRATION_SCRIPT_DIR}"/*.sh; do
@@ -772,12 +772,12 @@ DownloadAndInstallCasaOS() {
         ${sudo_cmd} bash "${SETUP_SCRIPT}" || Show 1 "Failed to run setup script"
         ColorReset
     done
-    
+
     UI_EVENTS_REG_SCRIPT=/etc/casaos/start.d/register-ui-events.sh
     if [[ -f ${UI_EVENTS_REG_SCRIPT} ]]; then
         ${sudo_cmd} chmod +x $UI_EVENTS_REG_SCRIPT
     fi
-    
+
     # Modify app store configuration
     sed -i "s#https://github.com/IceWhaleTech/_appstore/#${CASA_DOWNLOAD_DOMAIN}IceWhaleTech/_appstore/#g" "$PREFIX/etc/casaos/app-management.conf"
 
@@ -797,7 +797,7 @@ DownloadAndInstallCasaOS() {
     }
 
     ${sudo_cmd} chmod +x $CASA_UNINSTALL_PATH
-    
+
     Install_Rclone
 
     for SERVICE in "${CASA_SERVICES[@]}"; do
@@ -825,20 +825,82 @@ Check_Service_status() {
     done
 }
 
-# Get the physical NIC IP
+# Get the IP and port for CasaOS
 Get_IPs() {
-    PORT=$(${sudo_cmd} cat ${CASA_CONF_PATH} | grep port | sed 's/port=//')
-    ALL_NIC=$($sudo_cmd ls /sys/class/net/ | grep -v "$(ls /sys/devices/virtual/net/)")
-    for NIC in ${ALL_NIC}; do
-        IP=$($sudo_cmd ifconfig "${NIC}" | grep inet | grep -v 127.0.0.1 | grep -v inet6 | awk '{print $2}' | sed -e 's/addr://g')
-        if [[ -n $IP ]]; then
-            if [[ "$PORT" -eq "80" ]]; then
-                echo -e "${GREEN_BULLET} http://$IP (${NIC})"
-            else
-                echo -e "${GREEN_BULLET} http://$IP:$PORT (${NIC})"
-            fi
+    # Get port from config file with fallback to 80
+    PORT=$(${sudo_cmd} cat ${CASA_CONF_PATH} 2>/dev/null | grep -E "^port=|^HttpPort" | awk '{print $NF}' | sed 's/port=//')
+    # Default to port 80 if we couldn't get the port
+    if [[ -z "$PORT" ]]; then
+        PORT=80
+    fi
+
+    # Simple approach - get the first non-loopback IP (usually the LAN IP)
+    # This is similar to the find-your-casaos-ip-and-port/run.sh approach
+    LAN_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+
+    # If we got a valid IP, display it
+    if [[ -n "$LAN_IP" && "$LAN_IP" != "127."* ]]; then
+        if [[ "$PORT" -eq "80" ]]; then
+            echo -e "${GREEN_BULLET} http://$LAN_IP"
+        else
+            echo -e "${GREEN_BULLET} http://$LAN_IP:$PORT"
         fi
-    done
+        return
+    fi
+    
+    # If the simple approach failed, try more advanced methods
+    # Try to identify and exclude Docker and other virtual interfaces
+    if command -v ip >/dev/null 2>&1; then
+        # Get list of interfaces, excluding loopback, docker, and other virtual interfaces
+        INTERFACES=$(${sudo_cmd} ip -o link show | grep -v "lo:" | grep -v "docker" | grep -v "veth" | grep -v "br-" | grep -v "virtual" | awk -F': ' '{print $2}')
+
+        for IFACE in $INTERFACES; do
+            # Skip interfaces that don't exist or are down
+            if ! ${sudo_cmd} ip link show dev "$IFACE" 2>/dev/null | grep -q "UP"; then
+                continue
+            fi
+
+            # Get IPv4 addresses for this interface
+            IPS=$(${sudo_cmd} ip -o -4 addr show dev "$IFACE" 2>/dev/null | awk '{print $4}' | cut -d'/' -f1)
+
+            # Display each IP address
+            for IP in $IPS; do
+                # Skip loopback, link-local, and Docker addresses
+                if [[ -n "$IP" && "$IP" != "127."* && "$IP" != "169.254."* && "$IP" != "172.17."* && "$IP" != "172.18."* && "$IP" != "172.19."* && "$IP" != "172.20."* && "$IP" != "172.21."* && "$IP" != "172.22."* ]]; then
+                    if [[ "$PORT" -eq "80" ]]; then
+                        echo -e "${GREEN_BULLET} http://$IP (${IFACE})"
+                    else
+                        echo -e "${GREEN_BULLET} http://$IP:$PORT (${IFACE})"
+                    fi
+                fi
+            done
+        done
+    # Fallback to ifconfig if 'ip' is not available
+    elif command -v ifconfig >/dev/null 2>&1; then
+        # Get all interfaces except lo, docker, and other virtual interfaces
+        ALL_NIC=$(${sudo_cmd} ifconfig -a | grep -E '^[a-zA-Z0-9]+:' | awk -F': ' '{print $1}' | grep -v -E 'lo|docker|veth|br-')
+
+        for NIC in ${ALL_NIC}; do
+            # Get IPv4 addresses
+            IPS=$(${sudo_cmd} ifconfig "${NIC}" 2>/dev/null | grep "inet " | awk '{print $2}' | sed -e 's/addr://g')
+
+            for IP in $IPS; do
+                # Skip loopback, link-local, and Docker addresses
+                if [[ -n "$IP" && "$IP" != "127."* && "$IP" != "169.254."* && "$IP" != "172.17."* && "$IP" != "172.18."* && "$IP" != "172.19."* && "$IP" != "172.20."* && "$IP" != "172.21."* && "$IP" != "172.22."* ]]; then
+                    if [[ "$PORT" -eq "80" ]]; then
+                        echo -e "${GREEN_BULLET} http://$IP (${NIC})"
+                    else
+                        echo -e "${GREEN_BULLET} http://$IP:$PORT (${NIC})"
+                    fi
+                fi
+            done
+        done
+    fi
+
+    # If no IPs were found, show a message
+    if [[ -z "$(hostname -I 2>/dev/null | grep -v "127.0.0.1")" ]]; then
+        echo -e "${GREEN_BULLET} Could not detect IP address. Please check your network configuration."
+    fi
 }
 
 # Show Welcome Banner
