@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 #
 # This script includes functionality to automatically check SSL certificate validity.
 # SSL certificate verification will only be disabled if necessary for problematic domains.
@@ -522,9 +522,42 @@ Check_Docker_Install_Final() {
     fi
 }
 
+# Function to check and uninstall Docker from Snap
+Check_Docker_Snap() {
+    if command -v snap &> /dev/null && ${sudo_cmd} snap list docker &> /dev/null; then
+        Show 2 "Docker is installed via Snap."
+        echo -e "${aCOLOUR[4]}Snap-based Docker installations can cause compatibility issues with CasaOS.${COLOUR_RESET}"
+        echo -e "${aCOLOUR[4]}It's recommended to uninstall the Snap version before proceeding.${COLOUR_RESET}"
+
+        # Prompt for confirmation
+        read -p "Do you want to uninstall the Snap version of Docker? [y/n]: " yn
+        case $yn in
+            [Yy]*)
+                Show 2 "Uninstalling Docker from Snap..."
+                GreyStart
+                ${sudo_cmd} snap remove docker
+                ColorReset
+                Show 0 "Docker has been uninstalled from Snap."
+                ;;
+            [Nn]*)
+                Show 3 "Skipping Docker uninstallation from Snap. This may cause issues with CasaOS."
+                ;;
+            *)
+                Show 3 "Invalid response. Skipping Docker uninstallation from Snap."
+                ;;
+        esac
+    else
+        Show 2 "Docker is not installed via Snap, or Snap is not installed."
+    fi
+}
+
 #Install Docker
 Install_Docker() {
     Show 2 "Install the necessary dependencies: \e[33mDocker \e[0m"
+
+    # Check if Docker is installed via Snap and handle it
+    Check_Docker_Snap
+
     if [[ ! -d "${PREFIX}/etc/apt/sources.list.d" ]]; then
         ${sudo_cmd} mkdir -p "${PREFIX}/etc/apt/sources.list.d"
     fi
