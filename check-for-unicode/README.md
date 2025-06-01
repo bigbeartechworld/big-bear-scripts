@@ -87,7 +87,7 @@ The script scans for the following potentially harmful Unicode characters:
 ### Quick Run (Remote)
 
 ```bash
-bash -c "$(wget -qLO - https://raw.githubusercontent.com/bigbeartechworld/big-bear-scripts/master/check-for-unicode/run.sh)"
+bash -c "$(wget -qLO - https://raw.githubusercontent.com/bigbeartechworld/big-bear-scripts/master/check-for-unicode/run.sh)" -- .
 ```
 
 ### Local Usage
