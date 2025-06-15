@@ -52,7 +52,7 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/bigbeartechworld/big-bea
 - ⚠️ **This will temporarily stop your Portainer instance** during the reset process
 - 🔐 **Save the new password immediately** - it's randomly generated and cannot be recovered
 - 👤 **Resets the original admin account** (UserID == 1) - if removed, creates a new admin user
-- 📝 **Works with persistent volumes only** - bind mounts and named volumes are supported
+- 📝 **Works with persistent storage** - both named Docker volumes and bind mounts are supported
 
 ## Troubleshooting
 
@@ -63,12 +63,13 @@ If the script can't find your Portainer container, ensure:
 - Portainer is installed and the container exists
 - The container name contains "portainer"
 
-### Volume Not Found
+### Volume or Bind Mount Not Found
 
-If the data volume can't be located:
+If the data storage can't be located:
 
-- Verify Portainer has a persistent data volume mounted to `/data`
-- Check that the volume exists with `docker volume ls`
+- Verify Portainer has persistent storage mounted to `/data` (either a named volume or bind mount)
+- For named volumes: Check that the volume exists with `docker volume ls`
+- For bind mounts: Ensure the host directory exists and is accessible
 
 ### Permission Errors
 

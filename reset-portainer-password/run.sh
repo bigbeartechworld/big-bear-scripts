@@ -68,23 +68,23 @@ find_portainer_container() {
     return 1
 }
 
-# Function to find Portainer data volume
+# Function to find Portainer data volume or bind mount
 find_portainer_volume() {
     local container_name="$1"
-    local volume_name
+    local volume_info
     
-    # Get the volume mount for the data directory
-    volume_name=$(docker inspect "$container_name" --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}' 2>/dev/null)
+    # Get mount information for the /data directory
+    volume_info=$(docker inspect "$container_name" --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Type}}:{{if eq .Type "volume"}}{{.Name}}{{else}}{{.Source}}{{end}}{{end}}{{end}}' 2>/dev/null)
     
-    if [ -n "$volume_name" ]; then
-        echo "$volume_name"
+    if [ -n "$volume_info" ]; then
+        echo "$volume_info"
         return 0
     fi
     
-    # Check for common volume names
+    # Check for common volume names as fallback
     for vol in "portainer_data" "portainer_portainer_data" "portainer-data"; do
         if docker volume ls --format '{{.Name}}' | grep -q "^${vol}$"; then
-            echo "$vol"
+            echo "volume:$vol"
             return 0
         fi
     done
@@ -92,19 +92,33 @@ find_portainer_volume() {
     return 1
 }
 
+# Function to find stack service name
+find_stack_service() {
+    local container_name="$1"
+    local stack_namespace
+    
+    # Get the stack namespace from container labels
+    stack_namespace=$(docker inspect "$container_name" --format '{{index .Config.Labels "com.docker.stack.namespace"}}' 2>/dev/null)
+    
+    if [ -n "$stack_namespace" ]; then
+        # Find the service in the stack that matches portainer
+        docker service ls --format '{{.Name}}' --filter "label=com.docker.stack.namespace=$stack_namespace" | grep portainer | head -n 1
+    fi
+}
+
 # Function to detect deployment type
 detect_deployment_type() {
     local container_name="$1"
     
-    # Check if it's running as a service
-    if docker service ls --format '{{.Name}}' | grep -q portainer; then
-        echo "service"
+    # Check if it's part of a stack first
+    if docker inspect "$container_name" --format '{{index .Config.Labels "com.docker.stack.namespace"}}' 2>/dev/null | grep -q .; then
+        echo "stack"
         return 0
     fi
     
-    # Check if it's part of a stack
-    if docker inspect "$container_name" --format '{{index .Config.Labels "com.docker.stack.namespace"}}' 2>/dev/null | grep -q .; then
-        echo "stack"
+    # Check if it's running as a service
+    if docker service ls --format '{{.Name}}' | grep -q portainer; then
+        echo "service"
         return 0
     fi
     
@@ -127,15 +141,26 @@ if [ $? -ne 0 ]; then
 fi
 echo "✓ Found Portainer container: $portainer_container"
 
-# Find Portainer data volume
-echo "Looking for Portainer data volume..."
-portainer_volume=$(find_portainer_volume "$portainer_container")
+# Find Portainer data volume or bind mount
+echo "Looking for Portainer data volume or bind mount..."
+portainer_volume_info=$(find_portainer_volume "$portainer_container")
 if [ $? -ne 0 ]; then
-    echo "Error: Could not find Portainer data volume."
-    echo "Please make sure Portainer is properly configured with a data volume."
+    echo "Error: Could not find Portainer data volume or bind mount."
+    echo "Please make sure Portainer is properly configured with a data volume or bind mount."
     exit 1
 fi
-echo "✓ Found Portainer data volume: $portainer_volume"
+
+# Parse volume type and path
+volume_type=$(echo "$portainer_volume_info" | cut -d: -f1)
+volume_path=$(echo "$portainer_volume_info" | cut -d: -f2-)
+
+if [ "$volume_type" = "volume" ]; then
+    echo "✓ Found Portainer data volume: $volume_path"
+    portainer_volume="$volume_path"
+else
+    echo "✓ Found Portainer bind mount: $volume_path"
+    portainer_volume="$volume_path"
+fi
 
 # Detect deployment type
 deployment_type=$(detect_deployment_type "$portainer_container")
@@ -144,7 +169,11 @@ echo "✓ Detected deployment type: $deployment_type"
 echo
 echo "This script will reset the password for the Portainer administrator account."
 echo "Container: $portainer_container"
-echo "Data Volume: $portainer_volume"
+if [ "$volume_type" = "volume" ]; then
+    echo "Data Volume: $portainer_volume"
+else
+    echo "Bind Mount: $portainer_volume"
+fi
 echo "Deployment Type: $deployment_type"
 echo
 echo "WARNING: This will temporarily stop your Portainer instance!"
@@ -171,10 +200,15 @@ case $deployment_type in
         echo "✓ Portainer service scaled down"
         ;;
     "stack")
-        echo "Stopping Portainer container..."
-        docker stop "$portainer_container"
-        check_command "Failed to stop Portainer container"
-        echo "✓ Portainer container stopped"
+        echo "Scaling down Portainer stack service..."
+        stack_service_name=$(find_stack_service "$portainer_container")
+        if [ -z "$stack_service_name" ]; then
+            echo "Error: Could not find Portainer service in stack"
+            exit 1
+        fi
+        docker service scale "${stack_service_name}=0"
+        check_command "Failed to scale down Portainer stack service"
+        echo "✓ Portainer stack service scaled down"
         ;;
     *)
         echo "Stopping Portainer container..."
@@ -202,6 +236,9 @@ if [ $reset_exit_code -ne 0 ]; then
         "service")
             docker service scale "${service_name}=1"
             ;;
+        "stack")
+            docker service scale "${stack_service_name}=1"
+            ;;
         *)
             docker start "$portainer_container"
             ;;
@@ -225,6 +262,9 @@ if [ -z "$new_password" ]; then
         "service")
             docker service scale "${service_name}=1"
             ;;
+        "stack")
+            docker service scale "${stack_service_name}=1"
+            ;;
         *)
             docker start "$portainer_container"
             ;;
@@ -244,6 +284,9 @@ if ! [[ "$new_password" =~ ^[A-Za-z0-9\!\@\#\$\%\^\&\*\(\)\_\+\-\=\[\]\{\}\|\\\:
         "service")
             docker service scale "${service_name}=1"
             ;;
+        "stack")
+            docker service scale "${stack_service_name}=1"
+            ;;
         *)
             docker start "$portainer_container"
             ;;
@@ -260,6 +303,12 @@ case $deployment_type in
         docker service scale "${service_name}=1"
         check_command "Failed to scale up Portainer service"
         echo "✓ Portainer service scaled up"
+        ;;
+    "stack")
+        echo "Scaling up Portainer stack service..."
+        docker service scale "${stack_service_name}=1"
+        check_command "Failed to scale up Portainer stack service"
+        echo "✓ Portainer stack service scaled up"
         ;;
     *)
         echo "Starting Portainer container..."
