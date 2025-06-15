@@ -29,12 +29,10 @@ echo "If this is useful, please consider supporting my work at: https://ko-fi.co
 echo
 print_decorative_line
 
-# Function to check if a command succeeded
-check_command() {
-    if [ $? -ne 0 ]; then
-        echo "Error: $1"
-        exit 1
-    fi
+# Function to handle command errors with custom messages
+handle_error() {
+    echo "Error: $1"
+    exit 1
 }
 
 # Function to check if Docker is running
@@ -133,8 +131,7 @@ echo "✓ Docker is running"
 
 # Find Portainer container
 echo "Looking for Portainer container..."
-portainer_container=$(find_portainer_container)
-if [ $? -ne 0 ]; then
+if ! portainer_container=$(find_portainer_container); then
     echo "Error: No Portainer container found."
     echo "Please make sure Portainer is installed and running."
     exit 1
@@ -143,8 +140,7 @@ echo "✓ Found Portainer container: $portainer_container"
 
 # Find Portainer data volume or bind mount
 echo "Looking for Portainer data volume or bind mount..."
-portainer_volume_info=$(find_portainer_volume "$portainer_container")
-if [ $? -ne 0 ]; then
+if ! portainer_volume_info=$(find_portainer_volume "$portainer_container"); then
     echo "Error: Could not find Portainer data volume or bind mount."
     echo "Please make sure Portainer is properly configured with a data volume or bind mount."
     exit 1
@@ -195,8 +191,7 @@ case $deployment_type in
     "service")
         echo "Scaling down Portainer service..."
         service_name=$(docker service ls --format '{{.Name}}' | grep portainer | head -n 1)
-        docker service scale "${service_name}=0"
-        check_command "Failed to scale down Portainer service"
+        docker service scale "${service_name}=0" || handle_error "Failed to scale down Portainer service"
         echo "✓ Portainer service scaled down"
         ;;
     "stack")
@@ -206,14 +201,12 @@ case $deployment_type in
             echo "Error: Could not find Portainer service in stack"
             exit 1
         fi
-        docker service scale "${stack_service_name}=0"
-        check_command "Failed to scale down Portainer stack service"
+        docker service scale "${stack_service_name}=0" || handle_error "Failed to scale down Portainer stack service"
         echo "✓ Portainer stack service scaled down"
         ;;
     *)
         echo "Stopping Portainer container..."
-        docker stop "$portainer_container"
-        check_command "Failed to stop Portainer container"
+        docker stop "$portainer_container" || handle_error "Failed to stop Portainer container"
         echo "✓ Portainer container stopped"
         ;;
 esac
@@ -223,8 +216,11 @@ echo "Running Portainer password reset helper..."
 echo "This may take a few moments..."
 
 # Capture the output from the helper container
+# Temporarily disable set -e to capture exit code properly
+set +e
 reset_output=$(docker run --rm -v "${portainer_volume}:/data" portainer/helper-reset-password 2>&1)
 reset_exit_code=$?
+set -e
 
 if [ $reset_exit_code -ne 0 ]; then
     echo "Error: Password reset helper failed"
@@ -300,20 +296,17 @@ echo "✓ Password validation passed"
 case $deployment_type in
     "service")
         echo "Scaling up Portainer service..."
-        docker service scale "${service_name}=1"
-        check_command "Failed to scale up Portainer service"
+        docker service scale "${service_name}=1" || handle_error "Failed to scale up Portainer service"
         echo "✓ Portainer service scaled up"
         ;;
     "stack")
         echo "Scaling up Portainer stack service..."
-        docker service scale "${stack_service_name}=1"
-        check_command "Failed to scale up Portainer stack service"
+        docker service scale "${stack_service_name}=1" || handle_error "Failed to scale up Portainer stack service"
         echo "✓ Portainer stack service scaled up"
         ;;
     *)
         echo "Starting Portainer container..."
-        docker start "$portainer_container"
-        check_command "Failed to start Portainer container"
+        docker start "$portainer_container" || handle_error "Failed to start Portainer container"
         echo "✓ Portainer container started"
         ;;
 esac
