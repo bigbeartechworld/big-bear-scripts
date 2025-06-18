@@ -3,8 +3,18 @@
 # Enable strict error handling
 set -euo pipefail
 
-# Trap errors and provide clean exit
-trap 'echo "Aborting..."; exit 1' ERR
+# Function to handle errors with detailed diagnostic information
+handle_error() {
+    local line_number="$1"
+    local exit_code="$2"
+    echo "ERROR: Script failed at line $line_number with exit status $exit_code"
+    echo "Command that failed: $(sed -n "${line_number}p" "$0")"
+    echo "Aborting..."
+    exit "$exit_code"
+}
+
+# Trap errors and provide detailed error context
+trap 'handle_error ${LINENO} $?' ERR
 
 # Define a message for branding purposes
 MESSAGE="Made by BigBearTechWorld"
@@ -30,7 +40,7 @@ echo
 print_decorative_line
 
 # Function to handle command errors with custom messages
-handle_error() {
+handle_command_error() {
     echo "Error: $1"
     exit 1
 }
@@ -191,7 +201,7 @@ case $deployment_type in
     "service")
         echo "Scaling down Portainer service..."
         service_name=$(docker service ls --format '{{.Name}}' | grep portainer | head -n 1)
-        docker service scale "${service_name}=0" || handle_error "Failed to scale down Portainer service"
+        docker service scale "${service_name}=0" || handle_command_error "Failed to scale down Portainer service"
         echo "✓ Portainer service scaled down"
         ;;
     "stack")
@@ -201,12 +211,12 @@ case $deployment_type in
             echo "Error: Could not find Portainer service in stack"
             exit 1
         fi
-        docker service scale "${stack_service_name}=0" || handle_error "Failed to scale down Portainer stack service"
+        docker service scale "${stack_service_name}=0" || handle_command_error "Failed to scale down Portainer stack service"
         echo "✓ Portainer stack service scaled down"
         ;;
     *)
         echo "Stopping Portainer container..."
-        docker stop "$portainer_container" || handle_error "Failed to stop Portainer container"
+        docker stop "$portainer_container" || handle_command_error "Failed to stop Portainer container"
         echo "✓ Portainer container stopped"
         ;;
 esac
@@ -296,17 +306,17 @@ echo "✓ Password validation passed"
 case $deployment_type in
     "service")
         echo "Scaling up Portainer service..."
-        docker service scale "${service_name}=1" || handle_error "Failed to scale up Portainer service"
+        docker service scale "${service_name}=1" || handle_command_error "Failed to scale up Portainer service"
         echo "✓ Portainer service scaled up"
         ;;
     "stack")
         echo "Scaling up Portainer stack service..."
-        docker service scale "${stack_service_name}=1" || handle_error "Failed to scale up Portainer stack service"
+        docker service scale "${stack_service_name}=1" || handle_command_error "Failed to scale up Portainer stack service"
         echo "✓ Portainer stack service scaled up"
         ;;
     *)
         echo "Starting Portainer container..."
-        docker start "$portainer_container" || handle_error "Failed to start Portainer container"
+        docker start "$portainer_container" || handle_command_error "Failed to start Portainer container"
         echo "✓ Portainer container started"
         ;;
 esac
