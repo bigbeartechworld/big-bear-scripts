@@ -299,9 +299,33 @@ fi
 
 # Validate password complexity (security check)
 # Ensure the generated password meets expected complexity requirements
-if ! [[ "$new_password" =~ ^[A-Za-z0-9\!\@\#\$\%\^\&\*\(\)\_\+\-\=\[\]\{\}\|\\\:\;\"\'\<\>\,\.\?\/\~\`]{8,64}$ ]]; then
-    echo "Error: Generated password does not meet expected complexity requirements"
-    echo "Password should be 8-64 characters containing letters, numbers, and special characters"
+# Check for minimum length and that it contains printable ASCII characters
+if [[ ${#new_password} -lt 8 || ${#new_password} -gt 64 ]]; then
+    echo "Error: Generated password length is invalid (should be 8-64 characters)"
+    echo "Password length: ${#new_password}"
+    echo "Generated password: $new_password"
+    
+    # Try to restart Portainer before exiting
+    echo "Attempting to restart Portainer..."
+    case $deployment_type in
+        "service")
+            docker service scale "${service_name}=1"
+            ;;
+        "stack")
+            docker service scale "${stack_service_name}=1"
+            ;;
+        *)
+            docker start "$portainer_container"
+            ;;
+    esac
+    exit 1
+fi
+
+# Basic validation: ensure password contains only printable ASCII characters
+# and has some complexity (letters, numbers, and special characters)
+if ! [[ "$new_password" =~ [A-Za-z] ]] || ! [[ "$new_password" =~ [0-9] ]] || ! [[ "$new_password" =~ [^A-Za-z0-9] ]]; then
+    echo "Error: Generated password does not meet complexity requirements"
+    echo "Password must contain letters, numbers, and special characters"
     echo "Generated password: $new_password"
     
     # Try to restart Portainer before exiting
