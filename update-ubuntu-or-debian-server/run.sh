@@ -590,7 +590,7 @@ prompt_user() {
     if [ "$unattended" = true ]; then
         # Check configuration for auto-answers
         if [ -n "$config_var" ]; then
-            local config_value=$(eval echo \$${config_var})
+            local config_value="${!config_var}"
             if [ "$config_value" = "true" ]; then
                 print_info "Auto-proceeding: $question"
                 return 0
