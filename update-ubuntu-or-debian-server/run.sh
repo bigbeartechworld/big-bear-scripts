@@ -203,8 +203,9 @@ load_config() {
                 enable_email_notifications|email_address|exclude_packages|min_disk_space_percent|max_load_average|\
                 backup_before_upgrade|retry_count|parallel_downloads|check_security_updates|\
                 maintenance_window_start|maintenance_window_end)
-                    # Set the variable safely
-                    declare -g "$key=$value"
+                    # Set the variable safely using printf -v
+                    printf -v "$key" '%s' "$value"
+                    export "$key"
                     ;;
                 *)
                     log "Ignoring unknown configuration variable: $key" "WARNING"
