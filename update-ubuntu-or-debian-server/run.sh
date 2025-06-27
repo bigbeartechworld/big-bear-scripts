@@ -182,7 +182,37 @@ load_config() {
         log "Created default configuration file at $CONFIG_FILE"
     fi
     
-    source "$CONFIG_FILE"
+    # Safely parse configuration file without executing arbitrary commands
+    while IFS= read -r line; do
+        # Skip empty lines and comments
+        [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+        
+        # Only process lines that match key=value format (with optional spaces)
+        if [[ "$line" =~ ^[[:space:]]*([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]*=[[:space:]]*(.*)$ ]]; then
+            local key="${BASH_REMATCH[1]}"
+            local value="${BASH_REMATCH[2]}"
+            
+            # Remove surrounding quotes if present
+            if [[ "$value" =~ ^\"(.*)\"$ ]] || [[ "$value" =~ ^\'(.*)\'$ ]]; then
+                value="${BASH_REMATCH[1]}"
+            fi
+            
+            # Only allow known configuration variables for additional security
+            case "$key" in
+                auto_update_package_list|auto_upgrade_packages|auto_full_upgrade|auto_remove_unnecessary|auto_clean_cache|\
+                enable_email_notifications|email_address|exclude_packages|min_disk_space_percent|max_load_average|\
+                backup_before_upgrade|retry_count|parallel_downloads|check_security_updates|\
+                maintenance_window_start|maintenance_window_end)
+                    # Set the variable safely
+                    declare -g "$key=$value"
+                    ;;
+                *)
+                    log "Ignoring unknown configuration variable: $key" "WARNING"
+                    ;;
+            esac
+        fi
+    done < "$CONFIG_FILE"
+    
     log "Configuration loaded from $CONFIG_FILE"
 }
 
