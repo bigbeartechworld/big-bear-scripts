@@ -358,12 +358,12 @@ check_security_updates() {
 
 # Function to retry operations
 retry_operation() {
-    local operation="$1"
     local max_attempts="${retry_count:-3}"
     local attempt=1
-    
+    local -a cmd=("$@")
+
     while [ $attempt -le $max_attempts ]; do
-        if eval "$operation"; then
+        if "${cmd[@]}"; then
             return 0
         else
             print_warning "Attempt $attempt/$max_attempts failed, retrying in 5 seconds..."
@@ -371,8 +371,8 @@ retry_operation() {
             ((attempt++))
         fi
     done
-    
-    FAILED_OPERATIONS+=("$operation")
+
+    FAILED_OPERATIONS+=("${cmd[*]}")
     return 1
 }
 
@@ -707,8 +707,8 @@ print_success "Package exclusion check completed"
 print_section "Step 1: Package List Update"
 estimate_time_remaining "update"
 if prompt_user "Do you want to update the package list?" "auto_update_package_list"; then
-    if retry_operation "sudo $APT_CMD update >/dev/null 2>&1"; then
-        show_progress 10 "Updating package list"
+    if retry_operation sudo "$APT_CMD" update >/dev/null 2>&1; then
+        show_progress_bar 10 "Updating package list"
         print_success "Package list updated successfully"
         updated_package_list=true
         log "Package list updated successfully"
@@ -731,7 +731,7 @@ if prompt_user "Do you want to upgrade installed packages?" "auto_upgrade_packag
     packages_before=$(dpkg -l | grep -c "^ii")
     
     print_info "Upgrading installed packages (this may take a while)..."
-    if retry_operation "sudo $APT_CMD upgrade -y"; then
+    if retry_operation sudo "$APT_CMD" upgrade -y; then
         packages_after=$(dpkg -l | grep -c "^ii")
         PACKAGES_UPGRADED=$((packages_after - packages_before))
         print_success "Installed packages upgraded successfully"
@@ -752,7 +752,7 @@ print_section "Step 3: Full System Upgrade"
 estimate_time_remaining "full-upgrade"
 if prompt_user "Do you want to perform a full upgrade?" "auto_full_upgrade"; then
     print_info "Performing a full upgrade (this may take a while)..."
-    if retry_operation "sudo $APT_CMD full-upgrade -y"; then
+    if retry_operation sudo "$APT_CMD" full-upgrade -y; then
         print_success "Full upgrade completed successfully"
         full_upgrade_done=true
         log "Full upgrade completed successfully"
@@ -772,7 +772,7 @@ if prompt_user "Do you want to remove unnecessary packages?" "auto_remove_unnece
     # Count packages before removal
     packages_before_removal=$(dpkg -l | grep -c "^ii")
     
-    if retry_operation "sudo apt autoremove -y >/dev/null 2>&1"; then
+    if retry_operation sudo apt autoremove -y >/dev/null 2>&1; then
         show_progress_bar 3 "Removing unnecessary packages"
         packages_after_removal=$(dpkg -l | grep -c "^ii")
         PACKAGES_REMOVED=$((packages_before_removal - packages_after_removal))
@@ -796,7 +796,7 @@ if prompt_user "Do you want to clean up cached package files?" "auto_clean_cache
     # Get cache size before cleaning
     cache_size_before=$(du -sm /var/cache/apt 2>/dev/null | cut -f1 || echo "0")
     
-    if retry_operation "sudo apt clean >/dev/null 2>&1"; then
+    if retry_operation sudo apt clean >/dev/null 2>&1; then
         show_progress 8 "Cleaning cached package files"
         cache_size_after=$(du -sm /var/cache/apt 2>/dev/null | cut -f1 || echo "0")
         cache_freed=$((cache_size_before - cache_size_after))
@@ -812,8 +812,6 @@ else
     print_warning "Skipping cache cleanup"
     log "Skipping cache cleanup."
 fi
-
-
 
 # Performance metrics
 END_TIME=$(date +%s)
