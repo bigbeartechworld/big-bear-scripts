@@ -351,11 +351,25 @@ in_maintenance_window() {
     local start_time="${maintenance_window_start:-02:00}"
     local end_time="${maintenance_window_end:-04:00}"
     
-    if [[ "$current_time" > "$start_time" && "$current_time" < "$end_time" ]]; then
-        return 0
+    # Convert times to minutes since midnight
+    local current_minutes=$(echo "$current_time" | awk -F: '{print $1 * 60 + $2}')
+    local start_minutes=$(echo "$start_time" | awk -F: '{print $1 * 60 + $2}')
+    local end_minutes=$(echo "$end_time" | awk -F: '{print $1 * 60 + $2}')
+    
+    # Handle maintenance window that crosses midnight
+    if [ $start_minutes -le $end_minutes ]; then
+        # Normal case: start <= end (e.g., 02:00 to 04:00)
+        if [ $current_minutes -ge $start_minutes ] && [ $current_minutes -le $end_minutes ]; then
+            return 0
+        fi
     else
-        return 1
+        # Wrap-around case: start > end (e.g., 22:00 to 02:00)
+        if [ $current_minutes -ge $start_minutes ] || [ $current_minutes -le $end_minutes ]; then
+            return 0
+        fi
     fi
+    
+    return 1
 }
 
 # Function to estimate time remaining
@@ -653,6 +667,11 @@ full_upgrade_done=false
 removed_unnecessary=false
 cache_cleaned=false
 
+# Check and hold excluded packages before upgrades
+print_section "Package Exclusion Check"
+check_problematic_packages
+print_success "Package exclusion check completed"
+
 # Step 1: Update the package list
 print_section "Step 1: Package List Update"
 estimate_time_remaining "update"
@@ -763,10 +782,7 @@ else
     log "Skipping cache cleanup."
 fi
 
-# Check problematic packages
-print_section "Security Check"
-check_problematic_packages
-print_success "Security check completed"
+
 
 # Performance metrics
 END_TIME=$(date +%s)
