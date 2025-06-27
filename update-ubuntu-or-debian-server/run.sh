@@ -134,7 +134,14 @@ log() {
     timestamp=$(date +"%Y-%m-%d %H:%M:%S")
     echo "[$timestamp] [$level] $message" >> "$LOG_FILE"
     # Optionally, also log to JSON
-    echo "{\"timestamp\": \"$timestamp\", \"level\": \"$level\", \"message\": \"$message\"}" >> "$JSON_LOG_FILE"
+    if command -v jq >/dev/null 2>&1; then
+        jq -cn --arg timestamp "$timestamp" --arg level "$level" --arg message "$message" '{timestamp: $timestamp, level: $level, message: $message}' >> "$JSON_LOG_FILE"
+    else
+        # Manual escaping: replace backslashes, then double quotes, then remove newlines
+        local safe_message
+        safe_message=$(echo "$message" | sed 's/\\/\\\\/g; s/\"/\\\"/g; s/\r//g; s/\n/ /g')
+        echo "{\"timestamp\": \"$timestamp\", \"level\": \"$level\", \"message\": \"$safe_message\"}" >> "$JSON_LOG_FILE"
+    fi
 }
 
 # Function to check and install missing dependencies
@@ -144,6 +151,10 @@ check_dependencies() {
     # Check for bc (calculator)
     if ! command -v bc >/dev/null 2>&1; then
         missing_deps+=("bc")
+    fi
+    # Check for jq (JSON processor)
+    if ! command -v jq >/dev/null 2>&1; then
+        missing_deps+=("jq")
     fi
     
     if [ ${#missing_deps[@]} -gt 0 ]; then
