@@ -258,7 +258,7 @@ create_backup() {
         print_info "Creating system backup..."
         
         sudo mkdir -p "$backup_dir"
-        sudo dpkg --get-selections > "$backup_dir/package-selections.txt"
+        sudo sh -c "dpkg --get-selections > \"$backup_dir/package-selections.txt\""
         sudo cp -r /etc/apt "$backup_dir/"
         
         print_success "Backup created at $backup_dir"
@@ -415,6 +415,19 @@ show_progress_bar() {
     local task=$2
     local progress=0
     
+    # Calculate sleep step with floating-point precision and minimum value
+    local sleep_step
+    if command -v bc >/dev/null 2>&1; then
+        sleep_step=$(echo "scale=3; $duration / 100" | bc)
+        # Ensure minimum sleep interval of 0.05 seconds
+        if (( $(echo "$sleep_step < 0.05" | bc -l) )); then
+            sleep_step="0.05"
+        fi
+    else
+        # Fallback using awk if bc is not available
+        sleep_step=$(awk "BEGIN {step = $duration / 100; print (step < 0.05) ? 0.05 : step}")
+    fi
+    
     echo -ne "${CYAN}${GEAR} $task "
     
     while [ $progress -le 100 ]; do
@@ -426,7 +439,7 @@ show_progress_bar() {
         printf "%*s" $empty | tr ' ' '░'
         printf "] %d%%" $progress
         
-        sleep $((duration / 100))
+        sleep "$sleep_step"
         progress=$((progress + 1))
     done
     
