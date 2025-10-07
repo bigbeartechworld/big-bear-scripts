@@ -70,6 +70,196 @@ harmful_patterns=(
     "efe00d:FE0D:Variation Selector-14"
     "efe00e:FE0E:Variation Selector-15"
     "efe00f:FE0F:Variation Selector-16"
+    
+    # Homograph attack characters - Cyrillic lookalikes (CVE-2017-5116)
+    "d0b0:0430:Cyrillic Small Letter A (looks like Latin a)"
+    "d181:0441:Cyrillic Small Letter Es (looks like Latin c)"
+    "d0b5:0435:Cyrillic Small Letter Ie (looks like Latin e)"
+    "d0be:043E:Cyrillic Small Letter O (looks like Latin o)"
+    "d180:0440:Cyrillic Small Letter Er (looks like Latin p)"
+    "d185:0445:Cyrillic Small Letter Ha (looks like Latin x)"
+    "d183:0443:Cyrillic Small Letter U (looks like Latin y)"
+    "d0b2:0432:Cyrillic Small Letter Ve (looks like Latin B)"
+    "d096:0456:Cyrillic Small Letter Byelorussian-Ukrainian I (looks like Latin i)"
+    "d098:0458:Cyrillic Small Letter Je (looks like Latin j)"
+    "d195:0475:Cyrillic Small Letter Izhitsa (looks like Latin v)"
+    "d0b4:0434:Cyrillic Small Letter De (looks like Latin g in italic)"
+    "d197:0457:Cyrillic Small Letter Yi (looks like Latin i with dots)"
+    "d281:04bb:Cyrillic Small Letter Shha (looks like Latin h)"
+    "d4b1:0531:Armenian Capital Letter Ayb (looks like Latin U)"
+    "d587:0587:Armenian Small Ligature Ech Yiwn (looks like Latin w)"
+    
+    # Cyrillic capital letters
+    "d090:0410:Cyrillic Capital Letter A (looks like Latin A)"
+    "d092:0412:Cyrillic Capital Letter Ve (looks like Latin B)"
+    "d0a1:0421:Cyrillic Capital Letter Es (looks like Latin C)"
+    "d095:0415:Cyrillic Capital Letter Ie (looks like Latin E)"
+    "d09d:041D:Cyrillic Capital Letter En (looks like Latin H)"
+    "d096:0406:Cyrillic Capital Letter Byelorussian-Ukrainian I (looks like Latin I)"
+    "d098:0408:Cyrillic Capital Letter Je (looks like Latin J)"
+    "d09a:041A:Cyrillic Capital Letter Ka (looks like Latin K)"
+    "d09c:041C:Cyrillic Capital Letter Em (looks like Latin M)"
+    "d09e:041E:Cyrillic Capital Letter O (looks like Latin O)"
+    "d0a0:0420:Cyrillic Capital Letter Er (looks like Latin P)"
+    "d085:0405:Cyrillic Capital Letter Dze (looks like Latin S)"
+    "d0a2:0422:Cyrillic Capital Letter Te (looks like Latin T)"
+    "d0a5:0425:Cyrillic Capital Letter Ha (looks like Latin X)"
+    "d0a3:0423:Cyrillic Capital Letter U (looks like Latin Y)"
+    
+    # Greek lookalikes
+    "cebf:03BF:Greek Small Letter Omicron (looks like Latin o)"
+    "ceb1:03B1:Greek Small Letter Alpha (looks like Latin a in italic)"
+    "ceb5:03B5:Greek Small Letter Epsilon (looks like Latin e)"
+    "cebd:03BD:Greek Small Letter Nu (looks like Latin v)"
+    "cf81:03C1:Greek Small Letter Rho (looks like Latin p)"
+    "cf84:03C4:Greek Small Letter Tau (looks like Latin t)"
+    "cf85:03C5:Greek Small Letter Upsilon (looks like Latin u)"
+    "cf87:03C7:Greek Small Letter Chi (looks like Latin x)"
+    "ceb9:03B9:Greek Small Letter Iota (looks like Latin i)"
+    "ceba:03BA:Greek Small Letter Kappa (looks like Latin k)"
+    "ceb7:03B7:Greek Small Letter Eta (looks like Latin n)"
+    "cf89:03C9:Greek Small Letter Omega (looks like Latin w)"
+    
+    # Armenian lookalikes
+    "d5b8:0578:Armenian Small Letter Vo (looks like Latin n)"
+    "d5bd:057D:Armenian Small Letter Seh (looks like Latin s)"
+    "d5b5:0575:Armenian Small Letter Yi (looks like Latin j)"
+    "d5b0:0570:Armenian Small Letter Ho (looks like Latin h)"
+    "d5b4:0574:Armenian Small Letter Men (looks like Latin q)"
+    "d5b1:0571:Armenian Small Letter Sha (looks like Latin g)"
+    "d5a1:0561:Armenian Small Letter Ayb (looks like Latin a)"
+    
+    # Thai lookalikes (modern simplified fonts)
+    "e0b884:0E04:Thai Character Kho Khwai (looks like Latin A)"
+    "e0b897:0E17:Thai Character Tho Thahan (looks like Latin n)"
+    "e0b899:0E19:Thai Character No Nu (looks like Latin u)"
+    "e0b89a:0E1A:Thai Character Bo Baimai (looks like Latin U)"
+    "e0b89b:0E1B:Thai Character Po Pla (looks like Latin J)"
+    "e0b89e:0E1E:Thai Character Pho Phung (looks like Latin W)"
+    "e0b8a3:0E23:Thai Character Ro Rua (looks like Latin S)"
+    "e0b8a5:0E25:Thai Character Lo Ling (looks like Latin a)"
+    
+    # Mathematical Alphanumeric Symbols (often used in AI attacks)
+    "f09d9482:1D502:Mathematical Fraktur Small A"
+    "f09d94b8:1D4B8:Mathematical Script Small A"
+    "f09d95b6:1D576:Mathematical Bold Fraktur Small A"
+    "f09d96ba:1D6BA:Mathematical Bold Small Alpha"
+    "f09d90ae:1D42E:Mathematical Bold Small A"
+    "f09d91b6:1D476:Mathematical Bold Italic Small A"
+    "f09d92aa:1D4AA:Mathematical Sans-Serif Small A"
+    "f09d93b2:1D4F2:Mathematical Sans-Serif Bold Small A"
+    "f09d94ba:1D4BA:Mathematical Sans-Serif Italic Small A"
+    "f09d95c2:1D582:Mathematical Sans-Serif Bold Italic Small A"
+    "f09d96ba:1D6BA:Mathematical Monospace Small A"
+    
+    # Fullwidth characters (used in prompt injection)
+    "efbca1:FF21:Fullwidth Latin Capital Letter A"
+    "efbca2:FF22:Fullwidth Latin Capital Letter B"
+    "efbca3:FF23:Fullwidth Latin Capital Letter C"
+    "efbcb1:FF31:Fullwidth Latin Small Letter A"
+    "efbcb2:FF32:Fullwidth Latin Small Letter B"
+    "efbcb3:FF33:Fullwidth Latin Small Letter C"
+    
+    # Number Forms that can be confused with letters
+    "e285a0:2160:Roman Numeral One (looks like Latin I)"
+    "e285a5:2165:Roman Numeral Six (looks like VI)"
+    "e285a9:2169:Roman Numeral Ten (looks like Latin X)"
+    "e285b4:2174:Small Roman Numeral Five (looks like Latin v)"
+    "e285b9:2179:Small Roman Numeral Ten (looks like Latin x)"
+    
+    # AI-specific prompt injection patterns
+    "e2819f:205F:Medium Mathematical Space (invisible separator)"
+    "e28087:2007:Figure Space (numeric space manipulation)"
+    "e28088:2008:Punctuation Space (can break tokenization)"
+    "e28089:2009:Thin Space (subtle spacing attack)"
+    "e2808a:200A:Hair Space (micro-spacing attack)"
+    "e2808b:202F:Narrow No-Break Space (line manipulation)"
+    "e281a5:2065:Inhibit Arabic Form Shaping (script confusion)"
+    "e281a6:2066:Left-to-Right Isolate (directional confusion)"
+    "e281a7:2067:Right-to-Left Isolate (directional confusion)"
+    "e281a8:2068:First Strong Isolate (directional confusion)"
+    "e281a9:2069:Pop Directional Isolate (directional confusion)"
+    
+    # Unicode normalization attack vectors
+    "cc80:0300:Combining Grave Accent (normalization attack)"
+    "cc81:0301:Combining Acute Accent (normalization attack)"
+    "cc82:0302:Combining Circumflex Accent (normalization attack)"
+    "cc83:0303:Combining Tilde (normalization attack)"
+    "cc84:0304:Combining Macron (normalization attack)"
+    "cc88:0308:Combining Diaeresis (normalization attack)"
+    "cc8a:030A:Combining Ring Above (normalization attack)"
+    "cc8c:030C:Combining Caron (normalization attack)"
+    
+    # Confusable punctuation and symbols
+    "e28098:2018:Left Single Quotation Mark (looks like apostrophe)"
+    "e28099:2019:Right Single Quotation Mark (looks like apostrophe)"
+    "e2809c:201C:Left Double Quotation Mark (looks like quote)"
+    "e2809d:201D:Right Double Quotation Mark (looks like quote)"
+    "e28090:2010:Hyphen (different from ASCII hyphen)"
+    "e28091:2011:Non-Breaking Hyphen (different from ASCII hyphen)"
+    "e28092:2012:Figure Dash (looks like hyphen)"
+    "e28093:2013:En Dash (looks like hyphen)"
+    "e28094:2014:Em Dash (looks like double hyphen)"
+    "e28095:2015:Horizontal Bar (looks like long dash)"
+    "e280a6:2026:Horizontal Ellipsis (looks like three dots)"
+    "e280b0:2030:Per Mille Sign (looks like percent)"
+    "e280b9:2039:Single Left-Pointing Angle Quotation Mark"
+    "e280ba:203A:Single Right-Pointing Angle Quotation Mark"
+    
+    # Additional zero-width and control characters
+    "efbfb0:FFF0:Reserved Character (potential bypass)"
+    "efbfb1:FFF1:Reserved Character (potential bypass)"
+    "efbfb2:FFF2:Reserved Character (potential bypass)"
+    "efbfb3:FFF3:Reserved Character (potential bypass)"
+    "efbfb4:FFF4:Reserved Character (potential bypass)"
+    "efbfb5:FFF5:Reserved Character (potential bypass)"
+    "efbfb6:FFF6:Reserved Character (potential bypass)"
+    "efbfb7:FFF7:Reserved Character (potential bypass)"
+    "efbfb8:FFF8:Reserved Character (potential bypass)"
+    
+    # Superscript and subscript characters (AI confusion)
+    "e281b0:2070:Superscript Zero"
+    "c2b9:00B9:Superscript One"
+    "c2b2:00B2:Superscript Two"
+    "c2b3:00B3:Superscript Three"
+    "e281b4:2074:Superscript Four"
+    "e281b5:2075:Superscript Five"
+    "e281b6:2076:Superscript Six"
+    "e281b7:2077:Superscript Seven"
+    "e281b8:2078:Superscript Eight"
+    "e281b9:2079:Superscript Nine"
+    "e28280:2080:Subscript Zero"
+    "e28281:2081:Subscript One"
+    "e28282:2082:Subscript Two"
+    "e28283:2083:Subscript Three"
+    "e28284:2084:Subscript Four"
+    
+    # Emoji variation selectors and modifiers (can hide content)
+    "f09f8fb0:1F3F0:Emoji Tag Latin Small Letter P"
+    "f09f8fb1:1F3F1:Emoji Tag Latin Small Letter Q"
+    "f09f8fb2:1F3F2:Emoji Tag Latin Small Letter R"
+    "f09f8fb3:1F3F3:Emoji Tag Latin Small Letter S"
+    "f09f8fb4:1F3F4:Emoji Tag Latin Small Letter T"
+    "f09f8fb5:1F3F5:Emoji Tag Latin Small Letter U"
+    "f09f8fb6:1F3F6:Emoji Tag Latin Small Letter V"
+    "f09f8fb7:1F3F7:Emoji Tag Latin Small Letter W"
+    "f09f8fb8:1F3F8:Emoji Tag Latin Small Letter X"
+    "f09f8fb9:1F3F9:Emoji Tag Latin Small Letter Y"
+    "f09f8fba:1F3FA:Emoji Tag Latin Small Letter Z"
+    
+    # CJK Compatibility characters (can mimic ASCII)
+    "efbc81:FF01:Fullwidth Exclamation Mark"
+    "efbc9f:FF1F:Fullwidth Question Mark"
+    "efbc8a:FF0A:Fullwidth Asterisk"
+    "efbc8b:FF0B:Fullwidth Plus Sign"
+    "efbc8d:FF0D:Fullwidth Hyphen-Minus"
+    "efbc8e:FF0E:Fullwidth Full Stop"
+    "efbc8f:FF0F:Fullwidth Solidus"
+    "efbc9a:FF1A:Fullwidth Colon"
+    "efbc9b:FF1B:Fullwidth Semicolon"
+    "efbc9c:FF1C:Fullwidth Less-Than Sign"
+    "efbc9d:FF1D:Fullwidth Equals Sign"
+    "efbc9e:FF1E:Fullwidth Greater-Than Sign"
 )
 
 if [ $# -eq 0 ]; then
@@ -83,8 +273,8 @@ fi
 target="$1"
 
 echo -e "\033[1;35m╔══════════════════════════════════════════════════════════════╗\033[0m"
-echo -e "\033[1;35m║            Big Bear Unicode Security Scanner 1.0.1           ║\033[0m"
-echo -e "\033[1;35m║             Detecting dangerous Unicode characters           ║\033[0m"
+echo -e "\033[1;35m║         Big Bear Unicode Security Scanner v2.0.0 AI+         ║\033[0m"
+echo -e "\033[1;35m║       Detecting dangerous Unicode & AI injection attacks      ║\033[0m"
 echo -e "\033[1;35m║                       Please support me!                     ║\033[0m"
 echo -e "\033[1;35m║               https://ko-fi.com/bigbeartechworld             ║\033[0m"
 echo -e "\033[1;35m║                           Thank you!                         ║\033[0m"
@@ -102,15 +292,17 @@ search_file() {
     echo -e "\n\033[1;34mScanning:\033[0m $file"
     
     # Check file encoding - be more lenient with ASCII files
-    file_info=$(file -bi "$file")
+    # Use reliable MIME/type detection (macOS: -bI prints mime; fallback to -b)
+    file_info=$(file -bI "$file" 2>/dev/null || file -b "$file" 2>/dev/null)
     if ! echo "$file_info" | grep -qE '(utf-8|us-ascii)'; then
         echo -e "  \033[1;33mWarning:\033[0m Non-UTF8 file detected ($file_info)"
     fi
 
     found_any=false
     
-    # Convert file to hex for pattern matching
-    hex_content=$(hexdump -ve '1/1 "%.2x"' "$file" 2>/dev/null)
+    # Convert file to spaced hex bytes for pattern matching (enforces byte alignment)
+    # Example: "ef bb bf ..." (lowercase, space-separated)
+    hex_content=$(hexdump -ve '1/1 "%.2x "' "$file" 2>/dev/null)
     
     if [ -z "$hex_content" ]; then
         echo -e "  \033[1;33mWarning:\033[0m Could not read file as binary"
@@ -121,8 +313,10 @@ search_file() {
     # Search for each harmful pattern
     for pattern_info in "${harmful_patterns[@]}"; do
         IFS=':' read -r hex_pattern unicode_code description <<< "$pattern_info"
-        
-        if echo "$hex_content" | grep -q "$hex_pattern"; then
+        # Transform the contiguous hex pattern (e.g., "efbbbf") into space-separated bytes ("ef bb bf")
+        pattern_spaced=$(echo "$hex_pattern" | sed 's/../& /g; s/ $//')
+        # Match whole-byte sequences only: (^| )<bytes>( |$)
+        if echo "$hex_content" | grep -Eq "(^| )$pattern_spaced( |$)"; then
             if [ "$found_any" = false ]; then
                 echo -e "  \033[1;31m[!] Dangerous Unicode characters found:\033[0m"
                 found_any=true
