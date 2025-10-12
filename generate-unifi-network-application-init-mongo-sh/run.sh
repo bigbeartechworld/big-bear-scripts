@@ -21,7 +21,7 @@ fi
 mkdir -p "$(dirname "$location")"
 
 # Download the file from the given URL and save it to the specified location
-if ! curl -L "https://raw.githubusercontent.com/bigbeartechworld/big-bear-video-assets/main/how-to-install-unifi-network-application-on-portainer/init-mongo.sh" -o "$location"; then
+if ! curl -L "https://raw.githubusercontent.com/bigbeartechworld/big-bear-video-assets/refs/heads/main/portainer/unifi-network-application/init-mongo.js" -o "$location"; then
     echo "Error downloading the file. Check your Internet connection or the URL."
     exit 1
 fi
