@@ -1,8 +1,94 @@
 #!/usr/bin/env bash
 
-# Unicode Security Scanner
+# Unicode Security Scanner v2.0.0 AI+
 # Detects dangerous Unicode characters that can be used in security attacks
 # Including Trojan Source attacks (CVE-2021-42574) and other invisible characters
+
+# Script configuration
+VERSION="2.0.0"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Command-line options (defaults)
+QUIET_MODE=false
+JSON_OUTPUT=false
+SEVERITY_FILTER=""
+ALLOWLIST_FILE="${SCRIPT_DIR}/.unicode-allowlist"
+
+# Check dependencies
+check_dependencies() {
+    local missing=()
+    command -v hexdump >/dev/null || missing+=("hexdump")
+    command -v grep >/dev/null || missing+=("grep")
+    command -v file >/dev/null || missing+=("file")
+    command -v find >/dev/null || missing+=("find")
+    
+    if [ ${#missing[@]} -gt 0 ]; then
+        echo "Error: Missing required commands: ${missing[*]}" >&2
+        echo "Please install the required tools and try again." >&2
+        exit 2
+    fi
+}
+
+# Show help
+show_help() {
+    cat << EOF
+Unicode Security Scanner v${VERSION} - AI Enhanced
+
+USAGE:
+    $0 [OPTIONS] <file|directory>
+
+OPTIONS:
+    --help, -h          Show this help message
+    --version, -v       Show version information
+    --quiet, -q         Suppress non-error output (for CI/CD)
+    --json              Output results in JSON format
+    --severity LEVEL    Filter by severity: critical, high, medium, low
+                        (comma-separated, e.g., "critical,high")
+    --allowlist FILE    Path to allowlist file (default: .unicode-allowlist)
+
+EXAMPLES:
+    $0 ./src/                              # Scan directory
+    $0 script.py                          # Scan single file
+    $0 --quiet --json ./app/ > results.json  # JSON output for CI
+    $0 --severity critical,high ./        # Only show critical/high
+
+EXIT CODES:
+    0 - No threats detected
+    1 - Threats detected
+    2 - Error or invalid usage
+
+MORE INFO:
+    https://github.com/bigbeartechworld/big-bear-scripts
+EOF
+    exit 0
+}
+
+# Show version
+show_version() {
+    echo "Unicode Security Scanner v${VERSION}"
+    exit 0
+}
+
+# Load allowlist (Unicode codes to ignore)
+load_allowlist() {
+    # Store allowlisted codes in a simple variable (space-separated)
+    ALLOWLIST_CODES=""
+    if [ -f "$ALLOWLIST_FILE" ]; then
+        while IFS= read -r line; do
+            # Skip comments and empty lines
+            [[ "$line" =~ ^#.*$ || -z "$line" ]] && continue
+            # Extract Unicode code (e.g., U+200B or 200B)
+            code=$(echo "$line" | grep -oE 'U\+[0-9A-Fa-f]+|^[0-9A-Fa-f]+' | tr -d 'U+' | tr '[:lower:]' '[:upper:]')
+            [ -n "$code" ] && ALLOWLIST_CODES="$ALLOWLIST_CODES $code "
+        done < "$ALLOWLIST_FILE"
+    fi
+}
+
+# Check if Unicode code is in allowlist
+is_allowed() {
+    local code=$1
+    [[ "$ALLOWLIST_CODES" == *" $code "* ]]
+}
 
 # List of dangerous Unicode characters as hex patterns for grep
 # Format: "hex_pattern:unicode_code:description"
@@ -262,50 +348,103 @@ harmful_patterns=(
     "efbc9e:FF1E:Fullwidth Greater-Than Sign"
 )
 
-if [ $# -eq 0 ]; then
-    echo -e "\033[1;31mError:\033[0m No target specified"
-    echo -e "\033[1;33mUsage:\033[0m $0 <file/directory>"
-    echo -e "\033[1;36mExample:\033[0m $0 ./src/"
-    echo -e "\033[1;36mExample:\033[0m $0 script.py"
-    exit 1
+# Check dependencies first
+check_dependencies
+
+# Parse command-line arguments
+target=""
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --help|-h)
+            show_help
+            ;;
+        --version|-v)
+            show_version
+            ;;
+        --quiet|-q)
+            QUIET_MODE=true
+            shift
+            ;;
+        --json)
+            JSON_OUTPUT=true
+            shift
+            ;;
+        --severity)
+            SEVERITY_FILTER="$2"
+            shift 2
+            ;;
+        --allowlist)
+            ALLOWLIST_FILE="$2"
+            shift 2
+            ;;
+        -*)
+            echo "Error: Unknown option: $1" >&2
+            echo "Use --help for usage information" >&2
+            exit 2
+            ;;
+        *)
+            target="$1"
+            shift
+            ;;
+    esac
+done
+
+if [ -z "$target" ]; then
+    echo "Error: No target specified" >&2
+    echo "Usage: $0 [OPTIONS] <file|directory>" >&2
+    echo "Use --help for more information" >&2
+    exit 2
 fi
 
-target="$1"
+# Load allowlist into global variable
+load_allowlist
 
-echo -e "\033[1;35m╔══════════════════════════════════════════════════════════════╗\033[0m"
-echo -e "\033[1;35m║         Big Bear Unicode Security Scanner v2.0.0 AI+         ║\033[0m"
-echo -e "\033[1;35m║       Detecting dangerous Unicode & AI injection attacks      ║\033[0m"
-echo -e "\033[1;35m║                       Please support me!                     ║\033[0m"
-echo -e "\033[1;35m║               https://ko-fi.com/bigbeartechworld             ║\033[0m"
-echo -e "\033[1;35m║                           Thank you!                         ║\033[0m"
-echo -e "\033[1;35m║                  https://bigbeartechworld.com                ║\033[0m"
-echo -e "\033[1;35m╚══════════════════════════════════════════════════════════════╝\033[0m"
-echo
+# Show header unless in quiet or JSON mode
+if [ "$QUIET_MODE" = false ] && [ "$JSON_OUTPUT" = false ]; then
+    echo -e "\033[1;35m╔══════════════════════════════════════════════════════════════╗\033[0m"
+    echo -e "\033[1;35m║         Big Bear Unicode Security Scanner v2.0.0 AI+         ║\033[0m"
+    echo -e "\033[1;35m║       Detecting dangerous Unicode & AI injection attacks      ║\033[0m"
+    echo -e "\033[1;35m║                       Please support me!                     ║\033[0m"
+    echo -e "\033[1;35m║               https://ko-fi.com/bigbeartechworld             ║\033[0m"
+    echo -e "\033[1;35m║                           Thank you!                         ║\033[0m"
+    echo -e "\033[1;35m║                  https://bigbeartechworld.com                ║\033[0m"
+    echo -e "\033[1;35m╚══════════════════════════════════════════════════════════════╝\033[0m"
+    echo
+fi
 
-# Initialize counters for summary
+# Initialize counters and results for summary
 total_files=0
 files_with_issues=0
+declare -a json_results
 
 # Single file search function
 search_file() {
     file="$1"
-    echo -e "\n\033[1;34mScanning:\033[0m $file"
+    
+    if [ "$QUIET_MODE" = false ] && [ "$JSON_OUTPUT" = false ]; then
+        echo -e "\n\033[1;34mScanning:\033[0m $file"
+    fi
     
     # Check file encoding - be more lenient with ASCII files
     # Use reliable MIME/type detection (macOS: -bI prints mime; fallback to -b)
     file_info=$(file -bI "$file" 2>/dev/null || file -b "$file" 2>/dev/null)
     if ! echo "$file_info" | grep -qE '(utf-8|us-ascii)'; then
-        echo -e "  \033[1;33mWarning:\033[0m Non-UTF8 file detected ($file_info)"
+        if [ "$QUIET_MODE" = false ] && [ "$JSON_OUTPUT" = false ]; then
+            echo -e "  \033[1;33mWarning:\033[0m Non-UTF8 file detected ($file_info)"
+        fi
     fi
 
     found_any=false
+    local -a file_findings
     
     # Convert file to spaced hex bytes for pattern matching (enforces byte alignment)
     # Example: "ef bb bf ..." (lowercase, space-separated)
     hex_content=$(hexdump -ve '1/1 "%.2x "' "$file" 2>/dev/null)
     
     if [ -z "$hex_content" ]; then
-        echo -e "  \033[1;33mWarning:\033[0m Could not read file as binary"
+        if [ "$QUIET_MODE" = false ] && [ "$JSON_OUTPUT" = false ]; then
+            echo -e "  \033[1;33mWarning:\033[0m Could not read file as binary"
+        fi
         ((total_files++))
         return
     fi
@@ -313,36 +452,64 @@ search_file() {
     # Search for each harmful pattern
     for pattern_info in "${harmful_patterns[@]}"; do
         IFS=':' read -r hex_pattern unicode_code description <<< "$pattern_info"
+        
+        # Check if in allowlist
+        if is_allowed "$unicode_code"; then
+            continue
+        fi
+        
         # Transform the contiguous hex pattern (e.g., "efbbbf") into space-separated bytes ("ef bb bf")
         pattern_spaced=$(echo "$hex_pattern" | sed 's/../& /g; s/ $//')
         # Match whole-byte sequences only: (^| )<bytes>( |$)
         if echo "$hex_content" | grep -Eq "(^| )$pattern_spaced( |$)"; then
             if [ "$found_any" = false ]; then
-                echo -e "  \033[1;31m[!] Dangerous Unicode characters found:\033[0m"
+                if [ "$JSON_OUTPUT" = false ] && [ "$QUIET_MODE" = false ]; then
+                    echo -e "  \033[1;31m[!] Dangerous Unicode characters found:\033[0m"
+                fi
                 found_any=true
                 ((files_with_issues++))
             fi
             
-            echo -e "      \033[1;91mU+$unicode_code\033[0m ($description)"
-            
             # Find line numbers by searching the original file
-            # Create a temporary file with the actual Unicode character for line matching
             temp_char=$(echo "$hex_pattern" | sed 's/../\\x&/g')
             line_matches=$(grep -n "$(printf "$temp_char")" "$file" 2>/dev/null || echo "")
             
-            if [ -n "$line_matches" ]; then
-                echo "$line_matches" | while IFS=':' read -r line_num line_content; do
-                    echo -e "        \033[36mLine $line_num:\033[0m $line_content"
-                done
+            if [ "$JSON_OUTPUT" = true ]; then
+                # Collect for JSON output
+                if [ -n "$line_matches" ]; then
+                    while IFS=':' read -r line_num line_content; do
+                        file_findings+=("{\"unicode\":\"U+$unicode_code\",\"description\":\"$description\",\"line\":$line_num,\"content\":\"$(echo "$line_content" | sed 's/"/\\"/g')\"}")
+                    done <<< "$line_matches"
+                else
+                    file_findings+=("{\"unicode\":\"U+$unicode_code\",\"description\":\"$description\",\"line\":null,\"content\":null}")
+                fi
             else
-                echo -e "        \033[33m(Character found but line detection failed)\033[0m"
+                if [ "$QUIET_MODE" = false ]; then
+                    echo -e "      \033[1;91mU+$unicode_code\033[0m ($description)"
+                    
+                    if [ -n "$line_matches" ]; then
+                        echo "$line_matches" | while IFS=':' read -r line_num line_content; do
+                            echo -e "        \033[36mLine $line_num:\033[0m $line_content"
+                        done
+                    else
+                        echo -e "        \033[33m(Character found but line detection failed)\033[0m"
+                    fi
+                    echo
+                fi
             fi
-            echo
         fi
     done
     
     if [ "$found_any" = false ]; then
-        echo -e "  \033[1;32m✓ No dangerous Unicode characters found\033[0m"
+        if [ "$QUIET_MODE" = false ] && [ "$JSON_OUTPUT" = false ]; then
+            echo -e "  \033[1;32m✓ No dangerous Unicode characters found\033[0m"
+        fi
+    else
+        if [ "$JSON_OUTPUT" = true ]; then
+            # Add file results to JSON array
+            local findings_json=$(IFS=,; echo "${file_findings[*]}")
+            json_results+=("{\"file\":\"$file\",\"findings\":[$findings_json]}")
+        fi
     fi
     
     ((total_files++))
@@ -350,30 +517,58 @@ search_file() {
 
 # Handle directories recursively
 if [ -d "$target" ]; then
+    # Validate target is a directory
+    if [ ! -d "$target" ]; then
+        echo "Error: Directory not found: $target" >&2
+        exit 2
+    fi
+    
     # Use a simpler approach - collect all files first, then process them
-    echo "Collecting files..."
-    file_list=$(find "$target" -type f)
+    if [ "$QUIET_MODE" = false ] && [ "$JSON_OUTPUT" = false ]; then
+        echo "Collecting files..."
+    fi
+    file_list=$(find "$target" -type f 2>/dev/null)
+    
+    if [ -z "$file_list" ]; then
+        echo "Error: No files found in $target" >&2
+        exit 2
+    fi
     
     while IFS= read -r file; do
         if [ -n "$file" ]; then
             search_file "$file"
         fi
     done <<< "$file_list"
-else
+elif [ -f "$target" ]; then
     search_file "$target"
+else
+    echo "Error: Target not found or not accessible: $target" >&2
+    exit 2
 fi
 
 # Print summary
-echo -e "\n\033[1;35m╔══════════════════════════════════════════════════════════════╗\033[0m"
-echo -e "\033[1;35m║                           Summary                            ║\033[0m"
-echo -e "\033[1;35m╚══════════════════════════════════════════════════════════════╝\033[0m"
-echo -e "\033[1;36mTotal files scanned:\033[0m $total_files"
-echo -e "\033[1;36mFiles with issues:\033[0m $files_with_issues"
-
-if [ $files_with_issues -eq 0 ]; then
-    echo -e "\033[1;32m✓ No dangerous Unicode characters detected!\033[0m"
-    exit 0
+if [ "$JSON_OUTPUT" = true ]; then
+    # Output JSON results
+    results_json=$(IFS=,; echo "${json_results[*]}")
+    echo "{\"scanner\":\"Unicode Security Scanner\",\"version\":\"${VERSION}\",\"total_files\":$total_files,\"files_with_issues\":$files_with_issues,\"results\":[$results_json]}"
 else
-    echo -e "\033[1;31m⚠ Found dangerous Unicode characters in $files_with_issues file(s)\033[0m"
-    exit 1
+    if [ "$QUIET_MODE" = false ]; then
+        echo -e "\n\033[1;35m╔══════════════════════════════════════════════════════════════╗\033[0m"
+        echo -e "\033[1;35m║                           Summary                            ║\033[0m"
+        echo -e "\033[1;35m╚══════════════════════════════════════════════════════════════╝\033[0m"
+        echo -e "\033[1;36mTotal files scanned:\033[0m $total_files"
+        echo -e "\033[1;36mFiles with issues:\033[0m $files_with_issues"
+    fi
+
+    if [ $files_with_issues -eq 0 ]; then
+        if [ "$QUIET_MODE" = false ]; then
+            echo -e "\033[1;32m✓ No dangerous Unicode characters detected!\033[0m"
+        fi
+        exit 0
+    else
+        if [ "$QUIET_MODE" = false ]; then
+            echo -e "\033[1;31m⚠ Found dangerous Unicode characters in $files_with_issues file(s)\033[0m"
+        fi
+        exit 1
+    fi
 fi
