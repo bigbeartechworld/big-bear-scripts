@@ -32,7 +32,7 @@ NC='\033[0m' # No Color
 
 # Display Welcome
 echo -e "${BLUE}========================================${NC}"
-echo -e "${GREEN}BigBear CasaOS Installer V0.3${NC}"
+echo -e "${GREEN}BigBear CasaOS Installer V0.4${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo "Here are some links:"
 echo "https://community.bigbeartechworld.com"
@@ -140,7 +140,7 @@ UNAME_U="$(uname -s)"
 readonly UNAME_U
 
 readonly CASA_CONF_PATH=/etc/casaos/gateway.ini
-readonly CASA_UNINSTALL_URL="https://get.casaos.io/uninstall/v0.4.15"
+readonly CASA_UNINSTALL_URL="https://raw.githubusercontent.com/IceWhaleTech/get/main/casaos-uninstall"
 readonly CASA_UNINSTALL_PATH=/usr/bin/casaos-uninstall
 
 # REQUIREMENTS CONF PATH
@@ -818,12 +818,8 @@ DownloadAndInstallCasaOS() {
     if [[ -f $PREFIX/tmp/casaos-uninstall ]]; then
         ${sudo_cmd} rm -rf "$PREFIX/tmp/casaos-uninstall"
     fi
-    # Add -k only for get.casaos.io if needed
-    if [[ "$NEED_SSL_BYPASS" = true ]] && [[ "$CASA_UNINSTALL_URL" == *"get.casaos.io"* ]]; then
-        ${sudo_cmd} curl -k -fsSL "$CASA_UNINSTALL_URL" >"$PREFIX/tmp/casaos-uninstall"
-    else
-        ${sudo_cmd} curl -fsSL "$CASA_UNINSTALL_URL" >"$PREFIX/tmp/casaos-uninstall"
-    fi
+    # Download from GitHub
+    ${sudo_cmd} curl -fsSL "$CASA_UNINSTALL_URL" >"$PREFIX/tmp/casaos-uninstall"
     ${sudo_cmd} cp -rf "$PREFIX/tmp/casaos-uninstall" $CASA_UNINSTALL_PATH || {
         Show 1 "Download uninstall script failed, Please check if your internet connection is working and retry."
         exit 1
