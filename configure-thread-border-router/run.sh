@@ -24,14 +24,14 @@ echo "https://ko-fi.com/bigbeartechworld"
 echo ""
 
 # Check kernel configuration for IPV6_ROUTER_PREF
-if grep -q "CONFIG_IPV6_ROUTER_PREF=y" /boot/config-$(uname -r) 2>/dev/null; then
+if grep -q "CONFIG_IPV6_ROUTER_PREF=y" "/boot/config-$(uname -r)" 2>/dev/null; then
     echo "✅ CONFIG_IPV6_ROUTER_PREF is enabled"
 else
     echo "❌ CONFIG_IPV6_ROUTER_PREF might not be enabled in kernel"
 fi
 
 # Check kernel configuration for IPV6_ROUTE_INFO
-if grep -q "CONFIG_IPV6_ROUTE_INFO=y" /boot/config-$(uname -r) 2>/dev/null; then
+if grep -q "CONFIG_IPV6_ROUTE_INFO=y" "/boot/config-$(uname -r)" 2>/dev/null; then
     echo "✅ CONFIG_IPV6_ROUTE_INFO is enabled"
 else
     echo "❌ CONFIG_IPV6_ROUTE_INFO might not be enabled in kernel"
@@ -43,10 +43,19 @@ if [ "$ipv6_forwarding" -eq 0 ]; then
     echo "✅ IPv6 forwarding is disabled (recommended)"
 else
     echo "⚠️  IPv6 forwarding is enabled (not recommended for Thread communication)"
-    read -p "Would you like to disable IPv6 forwarding? (y/N): " disable_forwarding
+    read -r -p "Would you like to disable IPv6 forwarding? (y/N): " disable_forwarding
     if [[ $disable_forwarding =~ ^[Yy]$ ]]; then
         sysctl -w net.ipv6.conf.all.forwarding=0
-        echo "net.ipv6.conf.all.forwarding=0" >> /etc/sysctl.conf
+        
+        # Update /etc/sysctl.conf idempotently
+        if grep -q "^[[:space:]]*#*[[:space:]]*net\.ipv6\.conf\.all\.forwarding" /etc/sysctl.conf 2>/dev/null; then
+            # Replace existing line (commented or uncommented)
+            sed -i.bak 's/^[[:space:]]*#*[[:space:]]*net\.ipv6\.conf\.all\.forwarding.*/net.ipv6.conf.all.forwarding=0/' /etc/sysctl.conf
+        else
+            # Append if not found
+            echo "net.ipv6.conf.all.forwarding=0" >> /etc/sysctl.conf
+        fi
+        
         echo "IPv6 forwarding has been disabled"
     fi
 fi
@@ -82,7 +91,7 @@ if [ -n "$network_interfaces" ]; then
         state=$(ip -brief link show "$base_interface" | awk '{print $2}')
         ipv6_addr=$(ip -6 addr show dev "$base_interface" 2>/dev/null | grep "inet6" | grep -v "fe80" | awk '{print $2}')
         ipv6_ll_addr=$(ip -6 addr show dev "$base_interface" 2>/dev/null | grep "inet6" | grep "fe80" | awk '{print $2}')
-        ra_status=$(sysctl -n net.ipv6.conf.$base_interface.accept_ra 2>/dev/null || echo "N/A")
+        ra_status=$(sysctl -n "net.ipv6.conf.$base_interface.accept_ra" 2>/dev/null || echo "N/A")
 
         echo "$i) $base_interface"
         echo "   Status: $state"
@@ -110,26 +119,42 @@ if [ -n "$network_interfaces" ]; then
     read -r selected_numbers
     
     for num in $selected_numbers; do
-        if [[ -n "${interface_map[$num]}" ]]; then
-            interface="${interface_map[$num]}"
-            echo "Configuring IPv6 RA settings for $interface..."
-            
-            # Apply settings immediately
-            sysctl -w net.ipv6.conf.$interface.accept_ra=1
-            sysctl -w net.ipv6.conf.$interface.accept_ra_rt_info_max_plen=64
-            
-            # Ask about persistence
-            read -p "Would you like to make these settings persistent across reboots? (y/N): " persist
-            if [[ $persist =~ ^[Yy]$ ]]; then
+        # Validate numeric input
+        if ! [[ $num =~ ^[0-9]+$ ]]; then
+            echo "❌ Invalid selection: '$num' (not a number)"
+            continue
+        fi
+        
+        # Check if interface exists in map
+        if [[ -z "${interface_map[$num]}" ]]; then
+            echo "❌ Invalid selection: $num (no interface with this number)"
+            continue
+        fi
+        
+        interface="${interface_map[$num]}"
+        echo "Configuring IPv6 RA settings for $interface..."
+        
+        # Apply settings immediately
+        sysctl -w "net.ipv6.conf.$interface.accept_ra=1"
+        sysctl -w "net.ipv6.conf.$interface.accept_ra_rt_info_max_plen=64"
+        
+        # Ask about persistence
+        read -r -p "Would you like to make these settings persistent across reboots? (y/N): " persist
+        if [[ $persist =~ ^[Yy]$ ]]; then
+            # Check and add accept_ra setting idempotently
+            if ! grep -Fxq "net.ipv6.conf.$interface.accept_ra=1" /etc/sysctl.conf 2>/dev/null; then
                 echo "net.ipv6.conf.$interface.accept_ra=1" >> /etc/sysctl.conf
-                echo "net.ipv6.conf.$interface.accept_ra_rt_info_max_plen=64" >> /etc/sysctl.conf
-                echo "✅ Settings made persistent in /etc/sysctl.conf"
             fi
             
-            echo "✅ Configured $interface"
-        else
-            echo "❌ Invalid selection: $num"
+            # Check and add accept_ra_rt_info_max_plen setting idempotently
+            if ! grep -Fxq "net.ipv6.conf.$interface.accept_ra_rt_info_max_plen=64" /etc/sysctl.conf 2>/dev/null; then
+                echo "net.ipv6.conf.$interface.accept_ra_rt_info_max_plen=64" >> /etc/sysctl.conf
+            fi
+            
+            echo "✅ Settings made persistent in /etc/sysctl.conf"
         fi
+        
+        echo "✅ Configured $interface"
     done
 else
     echo "❌ No network interfaces detected"
