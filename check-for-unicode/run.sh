@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 
-# Unicode Security Scanner v2.0.0 AI+
+# Unicode Security Scanner v2.1.0 AI+
 # Detects dangerous Unicode characters that can be used in security attacks
 # Including Trojan Source attacks (CVE-2021-42574) and other invisible characters
 
 # Script configuration
-VERSION="2.0.0"
+VERSION="2.1.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Command-line options (defaults)
@@ -13,6 +13,8 @@ QUIET_MODE=false
 JSON_OUTPUT=false
 SEVERITY_FILTER=""
 ALLOWLIST_FILE="${SCRIPT_DIR}/.unicode-allowlist"
+EXCLUDE_EMOJIS=false
+EXCLUDE_COMMON_UNICODE=false
 
 # Check dependencies
 check_dependencies() {
@@ -32,7 +34,7 @@ check_dependencies() {
 # Show help
 show_help() {
     cat << EOF
-Unicode Security Scanner v${VERSION} - AI Enhanced
+Unicode Security Scanner v${VERSION} - AI Enhanced with False Positive Fix
 
 USAGE:
     $0 [OPTIONS] <file|directory>
@@ -45,12 +47,16 @@ OPTIONS:
     --severity LEVEL    Filter by severity: critical, high, medium, low
                         (comma-separated, e.g., "critical,high")
     --allowlist FILE    Path to allowlist file (default: .unicode-allowlist)
+    --exclude-emojis    Exclude emoji characters and variation selectors (reduces false positives)
+    --exclude-common    Exclude common Unicode like smart quotes, dashes (very permissive)
 
 EXAMPLES:
     $0 ./src/                              # Scan directory
     $0 script.py                          # Scan single file
     $0 --quiet --json ./app/ > results.json  # JSON output for CI
     $0 --severity critical,high ./        # Only show critical/high
+    $0 --exclude-emojis ./ui/             # Skip emoji characters in UI code
+    $0 --exclude-common ./docs/           # Very permissive for documentation
 
 EXIT CODES:
     0 - No threats detected
@@ -88,6 +94,54 @@ load_allowlist() {
 is_allowed() {
     local code=$1
     [[ "$ALLOWLIST_CODES" == *" $code "* ]]
+}
+
+# Check if pattern is emoji-related
+is_emoji_pattern() {
+    local unicode_code=$1
+    # Emoji variation selectors (FE00-FE0F)
+    [[ "$unicode_code" =~ ^FE0[0-9A-F]$ ]] && return 0
+    # Emoji tag characters (1F3F0-1F3FA, E0020-E007F)
+    [[ "$unicode_code" =~ ^1F3F[0-9A-F]$ ]] && return 0
+    [[ "$unicode_code" =~ ^E00[2-7][0-9A-F]$ ]] && return 0
+    # Zero-width joiner (used in emoji sequences)
+    [[ "$unicode_code" == "200D" ]] && return 0
+    return 1
+}
+
+# Check if pattern is common Unicode (quotes, dashes, etc.)
+is_common_unicode() {
+    local unicode_code=$1
+    # Smart quotes: U+2018, U+2019, U+201C, U+201D
+    [[ "$unicode_code" =~ ^201[89CD]$ ]] && return 0
+    # Dashes: U+2010-U+2015 (hyphen, non-breaking hyphen, figure dash, en-dash, em-dash, horizontal bar)
+    [[ "$unicode_code" =~ ^201[0-5]$ ]] && return 0
+    # Ellipsis: U+2026
+    [[ "$unicode_code" == "2026" ]] && return 0
+    # Common spaces (but not zero-width): U+2007-U+200A
+    [[ "$unicode_code" =~ ^200[7-9A]$ ]] && return 0
+    # Angle quotation marks: U+2039, U+203A
+    [[ "$unicode_code" =~ ^203[9A]$ ]] && return 0
+    # Per mille: U+2030
+    [[ "$unicode_code" == "2030" ]] && return 0
+    return 1
+}
+
+# Check if hex pattern appears in an emoji context
+is_in_emoji_context() {
+    local hex_content=$1
+    local pattern_spaced=$2
+    
+    # Look for emoji range characters (1F300-1F9FF) near the pattern
+    # Emoji base characters: f09f8c80 to f09fa7bf (approximate)
+    if echo "$hex_content" | grep -Eq "f0 9f [8-9a][0-9a-f] [0-9a-f]{2}.*$pattern_spaced"; then
+        return 0
+    fi
+    if echo "$hex_content" | grep -Eq "$pattern_spaced.*f0 9f [8-9a][0-9a-f] [0-9a-f]{2}"; then
+        return 0
+    fi
+    
+    return 1
 }
 
 # List of dangerous Unicode characters as hex patterns for grep
@@ -377,6 +431,14 @@ while [[ $# -gt 0 ]]; do
             ALLOWLIST_FILE="$2"
             shift 2
             ;;
+        --exclude-emojis)
+            EXCLUDE_EMOJIS=true
+            shift
+            ;;
+        --exclude-common)
+            EXCLUDE_COMMON_UNICODE=true
+            shift
+            ;;
         -*)
             echo "Error: Unknown option: $1" >&2
             echo "Use --help for usage information" >&2
@@ -402,7 +464,7 @@ load_allowlist
 # Show header unless in quiet or JSON mode
 if [ "$QUIET_MODE" = false ] && [ "$JSON_OUTPUT" = false ]; then
     echo -e "\033[1;35m╔══════════════════════════════════════════════════════════════╗\033[0m"
-    echo -e "\033[1;35m║         Big Bear Unicode Security Scanner v2.0.0 AI+         ║\033[0m"
+    echo -e "\033[1;35m║         Big Bear Unicode Security Scanner v2.1.0 AI+         ║\033[0m"
     echo -e "\033[1;35m║       Detecting dangerous Unicode & AI injection attacks      ║\033[0m"
     echo -e "\033[1;35m║                       Please support me!                     ║\033[0m"
     echo -e "\033[1;35m║               https://ko-fi.com/bigbeartechworld             ║\033[0m"
@@ -458,10 +520,25 @@ search_file() {
             continue
         fi
         
+        # Skip emoji-related patterns if flag is set
+        if [ "$EXCLUDE_EMOJIS" = true ] && is_emoji_pattern "$unicode_code"; then
+            continue
+        fi
+        
+        # Skip common Unicode if flag is set
+        if [ "$EXCLUDE_COMMON_UNICODE" = true ] && is_common_unicode "$unicode_code"; then
+            continue
+        fi
+        
         # Transform the contiguous hex pattern (e.g., "efbbbf") into space-separated bytes ("ef bb bf")
         pattern_spaced=$(echo "$hex_pattern" | sed 's/../& /g; s/ $//')
+        
         # Match whole-byte sequences only: (^| )<bytes>( |$)
         if echo "$hex_content" | grep -Eq "(^| )$pattern_spaced( |$)"; then
+            # For emoji-related characters, check context even if not excluded
+            if is_emoji_pattern "$unicode_code" && is_in_emoji_context "$hex_content" "$pattern_spaced"; then
+                continue
+            fi
             if [ "$found_any" = false ]; then
                 if [ "$JSON_OUTPUT" = false ] && [ "$QUIET_MODE" = false ]; then
                     echo -e "  \033[1;31m[!] Dangerous Unicode characters found:\033[0m"

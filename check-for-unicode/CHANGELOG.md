@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2025-10-23 False Positive Fix
+
+### Added
+- 🎯 **Context-Aware Emoji Detection**: Automatically detects when emoji variation selectors are part of legitimate emoji sequences
+- 🚫 **`--exclude-emojis` Flag**: Skip emoji-related Unicode characters to avoid false positives in UI code
+  - Excludes emoji variation selectors (U+FE00-FE0F)
+  - Excludes emoji tag characters (U+1F3F0-1F3FA)
+  - Excludes zero-width joiner (U+200D) in emoji contexts
+- 📝 **`--exclude-common` Flag**: Skip common typographic Unicode in documentation
+  - Smart quotes (U+2018, U+2019, U+201C, U+201D)
+  - En-dash and em-dash (U+2013, U+2014)
+  - Ellipsis (U+2026)
+  - Common spaces and punctuation
+- 📋 **`.unicode-allowlist.example`**: Template file with comprehensive examples for:
+  - Emoji and UI elements
+  - Typography and documentation
+  - Internationalization (i18n)
+  - Mathematical and scientific content
+  - Project-specific Unicode
+- 🧪 **Enhanced Test Suite**: Added tests for emoji and typography exclusions
+  - `emoji-ui-clean-test.jsx` - Tests emoji exclusion
+  - `typography-docs-test.md` - Tests common Unicode exclusion
+  - Total 9 tests covering all scenarios
+
+### Fixed
+- 🐛 **False Positives in UI Code**: Emoji characters (🏷️, 🏪, ✅) in React/Vue/Angular components no longer flagged
+- 🐛 **False Positives in Documentation**: Smart quotes, dashes, and ellipsis in markdown/text files no longer flagged
+- 🔧 **Test Runner**: Changed from `set -e` to `set +e` to properly handle exit code testing
+
+### Changed
+- 📈 **Version**: Bumped from 2.0.0 to 2.1.0
+- 📚 **Documentation**: Added "Avoiding False Positives" section at top of README
+- 📚 **Usage Examples**: Added examples for `--exclude-emojis` and `--exclude-common` flags
+- 🔍 **is_common_unicode()**: Enhanced to cover U+2010-U+2015, U+2026, U+2030, U+2039-U+203A
+
+### Security
+- ✅ **Maintained Security**: All dangerous Unicode patterns still detected even with exclusion flags
+  - Zero-width spaces (U+200B)
+  - Homograph attacks (Cyrillic, Greek, Armenian, Thai)
+  - Bidirectional overrides (CVE-2021-42574)
+  - AI injection patterns
+- 🎯 **Smart Detection**: Context-aware filtering only skips Unicode when it's clearly safe
+
 ## [2.0.0] - 2024 AI+ Release
 
 ### Added

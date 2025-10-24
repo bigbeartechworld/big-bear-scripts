@@ -3,7 +3,8 @@
 # Automated Test Runner for Unicode Security Scanner
 # Tests both clean files (should pass) and malicious files (should detect threats)
 
-set -e
+# Don't exit on error - we need to check exit codes
+set +e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCANNER="${SCRIPT_DIR}/../run.sh"
@@ -40,6 +41,42 @@ done
 
 echo ""
 
+# Test emoji files with --exclude-emojis flag (should exit 0 - emojis excluded)
+echo -e "${YELLOW}Testing emoji UI files with --exclude-emojis flag...${NC}"
+for file in "${SCRIPT_DIR}"/*emoji*.jsx "${SCRIPT_DIR}"/*emoji*.js; do
+    if [ -f "$file" ]; then
+        ((total++))
+        filename=$(basename "$file")
+        if "$SCANNER" --exclude-emojis "$file" > /dev/null 2>&1; then
+            echo -e "  ${GREEN}✓ PASS${NC}: $filename (emojis excluded, no threats)"
+            ((passed++))
+        else
+            echo -e "  ${RED}✗ FAIL${NC}: $filename (unexpected detection with --exclude-emojis)"
+            ((failed++))
+        fi
+    fi
+done
+
+echo ""
+
+# Test documentation with --exclude-common flag (should exit 0 - common Unicode excluded)
+echo -e "${YELLOW}Testing documentation with --exclude-common flag...${NC}"
+for file in "${SCRIPT_DIR}"/*docs*.md "${SCRIPT_DIR}"/*typography*; do
+    if [ -f "$file" ]; then
+        ((total++))
+        filename=$(basename "$file")
+        if "$SCANNER" --exclude-common "$file" > /dev/null 2>&1; then
+            echo -e "  ${GREEN}✓ PASS${NC}: $filename (common Unicode excluded)"
+            ((passed++))
+        else
+            echo -e "  ${RED}✗ FAIL${NC}: $filename (unexpected detection with --exclude-common)"
+            ((failed++))
+        fi
+    fi
+done
+
+echo ""
+
 # Test malicious files (should exit 1 - threats detected)
 echo -e "${YELLOW}Testing malicious files (expecting threat detections)...${NC}"
 for file in "${SCRIPT_DIR}"/*injection* "${SCRIPT_DIR}"/*trojan*; do
@@ -53,6 +90,30 @@ for file in "${SCRIPT_DIR}"/*injection* "${SCRIPT_DIR}"/*trojan*; do
             exit_code=$?
             if [ $exit_code -eq 1 ]; then
                 echo -e "  ${GREEN}✓ PASS${NC}: $filename (threats detected)"
+                ((passed++))
+            else
+                echo -e "  ${RED}✗ FAIL${NC}: $filename (unexpected exit code: $exit_code)"
+                ((failed++))
+            fi
+        fi
+    fi
+done
+
+echo ""
+
+# Test that malicious files are STILL caught even with exclusion flags
+echo -e "${YELLOW}Testing malicious files with exclusion flags (should still detect)...${NC}"
+for file in "${SCRIPT_DIR}"/*injection* "${SCRIPT_DIR}"/*trojan*; do
+    if [ -f "$file" ]; then
+        ((total++))
+        filename=$(basename "$file")
+        if "$SCANNER" --exclude-emojis --exclude-common "$file" > /dev/null 2>&1; then
+            echo -e "  ${RED}✗ FAIL${NC}: $filename (missed threats with exclusions)"
+            ((failed++))
+        else
+            exit_code=$?
+            if [ $exit_code -eq 1 ]; then
+                echo -e "  ${GREEN}✓ PASS${NC}: $filename (threats still detected despite exclusions)"
                 ((passed++))
             else
                 echo -e "  ${RED}✗ FAIL${NC}: $filename (unexpected exit code: $exit_code)"
