@@ -1,0 +1,9 @@
+# Test allowlist for Unicode Security Scanner
+# Format: One Unicode code per line (with or without U+ prefix)
+# Comments start with #
+
+# Allow zero-width space for this test
+U+200B
+
+# Allow some homograph characters for legitimate internationalization
+U+0430

@@ -1,0 +1,37 @@
+# AI Injection Test File
+# This file contains various Unicode characters that could be used in AI attacks
+
+# Homograph attack - looks like "admin" but uses Cyrillic 'а'
+аdmin_user = "test"
+
+# Zero-width space injection
+user​name = "hidden"
+
+# Bidirectional text override (Trojan Source attack)
+function isAdmin() {
+    return true; // } ⁦return false;⁩ 
+}
+
+# Mathematical alphanumeric symbols that look like normal text
+𝚌𝚘𝚍𝚎 = "looks normal but uses mathematical monospace"
+
+# Fullwidth characters that can bypass filters
+ｕｓｅｒ = "fullwidth"
+
+# Mixed scripts with visual confusion
+pythοn = "this uses Greek omicron instead of 'o'"
+
+# Invisible separator characters
+data‌base = "has an invisible separator"
+
+# Normalization attacks with combining characters
+café vs café (second one uses combining accent)
+
+# Emoji tag sequences that can hide content
+🏴󠁧󠁢󠁥󠁮󠁧󠁿hidden_content
+
+# Superscript/subscript confusion
+x² + y³ = z¹
+
+# CJK compatibility forms
+Ａ　ｆｉｌｅ　ｎａｍｅ　ｗｉｔｈ　ｆｕｌｌｗｉｄｔｈ　ｃｈａｒａｃｔｅｒｓ
