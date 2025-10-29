@@ -21,7 +21,7 @@ fi
 mkdir -p "$(dirname "$location")"
 
 # Download the file from the given URL and save it to the specified location
-curl -L "https://raw.githubusercontent.com/bigbeartechworld/big-bear-casaos/refs/heads/master/Apps/romm/config.yml" -o "$location"
+curl -L "https://raw.githubusercontent.com/bigbeartechworld/big-bear-universal-apps/refs/heads/main/apps/romm/config.yml" -o "$location"
 
 # Confirm to the user
 echo "Config saved to $location"
