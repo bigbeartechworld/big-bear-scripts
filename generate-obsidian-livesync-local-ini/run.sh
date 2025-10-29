@@ -21,7 +21,7 @@ fi
 mkdir -p "$(dirname "$location")"
 
 # Download the file from the given URL and save it to the specified location
-curl -L "https://raw.githubusercontent.com/bigbeartechworld/big-bear-casaos/master/Apps/obsidian-livesync/local.ini" -o "$location"
+curl -L "https://raw.githubusercontent.com/bigbeartechworld/big-bear-universal-apps/refs/heads/main/apps/obsidian-livesync/local.ini" -o "$location"
 
 # Confirm to the user
 echo "Config saved to $location"

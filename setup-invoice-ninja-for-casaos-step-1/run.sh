@@ -28,10 +28,10 @@ BASE_DIR="/DATA/AppData/big-bear-invoice-ninja/data"
 
 # Define the URLs for the files
 URLS=(
-    "https://github.com/bigbeartechworld/big-bear-casaos/raw/master/Apps/invoice-ninja/data/init/init.sh"
-    "https://github.com/bigbeartechworld/big-bear-casaos/raw/master/Apps/invoice-ninja/data/nginx/invoice-ninja.conf"
-    "https://github.com/bigbeartechworld/big-bear-casaos/raw/master/Apps/invoice-ninja/data/php/php-cli.ini"
-    "https://github.com/bigbeartechworld/big-bear-casaos/raw/master/Apps/invoice-ninja/data/php/php.ini"
+    "https://raw.githubusercontent.com/bigbeartechworld/big-bear-universal-apps/refs/heads/main/apps/invoice-ninja/data/init/init.sh"
+    "https://raw.githubusercontent.com/bigbeartechworld/big-bear-universal-apps/refs/heads/main/apps/invoice-ninja/data/nginx/invoice-ninja.conf"
+    "https://raw.githubusercontent.com/bigbeartechworld/big-bear-universal-apps/refs/heads/main/apps/invoice-ninja/data/php/php-cli.ini"
+    "https://raw.githubusercontent.com/bigbeartechworld/big-bear-universal-apps/refs/heads/main/apps/invoice-ninja/data/php/php.ini"
 )
 
 # Define the local paths where the files will be saved
