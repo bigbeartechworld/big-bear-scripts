@@ -4,22 +4,23 @@ A comprehensive security scanner that detects dangerous Unicode characters used 
 
 ## ⚠️ Avoiding False Positives
 
-**NEW in v2.1.0**: The scanner now includes context-aware detection to reduce false positives:
+**NEW in v2.1.1**: The scanner now automatically skips binary files to prevent false positives:
 
+- **Binary files** (`.jar`, `.zip`, `.png`, `.pdf`, etc.) are automatically skipped by default
+- **Text files only** are scanned unless you use `--include-binary` flag
 - **Emoji characters** (🏷️, 🏪, etc.) used in UI elements are automatically detected and can be excluded
 - **Smart quotes and common Unicode** used in documentation can be excluded
-- Use `--exclude-emojis` flag when scanning UI/frontend code
-- Use `--exclude-common` flag for documentation or content files
 - Use `.unicode-allowlist` file to whitelist specific Unicode characters for your project
 
-**Common False Positives:**
+**Common False Positives Fixed:**
+- ✅ **Binary files**: Now skipped automatically (archives, images, executables, etc.)
 - ✅ **Emojis in UI**: Use `--exclude-emojis` flag
 - ✅ **Smart quotes in docs**: Use `--exclude-common` flag  
 - ✅ **Intentional Unicode in i18n**: Add to `.unicode-allowlist`
 
 ## Purpose
 
-This enhanced script (v2.1.0 AI+) identifies Unicode characters that can:
+This enhanced script (v2.1.1 AI+) identifies Unicode characters that can:
 
 - **AI Injection Attacks**: Characters used to manipulate AI model responses
 - **Homograph Attacks**: Visually similar characters from different scripts (CVE-2017-5116)
@@ -248,8 +249,11 @@ chmod +x run.sh
 # Scan a single file
 ./run.sh /path/to/file.txt
 
-# Scan a directory recursively
+# Scan a directory recursively (automatically skips binary files)
 ./run.sh /path/to/directory
+
+# Scan including binary files (archives, images, etc.)
+./run.sh --include-binary ./
 
 # Scan UI/frontend code (exclude emojis to avoid false positives)
 ./run.sh --exclude-emojis ./src/components/

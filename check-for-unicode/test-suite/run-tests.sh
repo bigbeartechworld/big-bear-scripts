@@ -101,6 +101,32 @@ done
 
 echo ""
 
+# Test binary file handling
+echo -e "${YELLOW}Testing binary file handling...${NC}"
+if [ -f "${SCRIPT_DIR}/test.jar" ]; then
+    ((total++))
+    # Test that binary files are skipped by default
+    if "$SCANNER" "${SCRIPT_DIR}/test.jar" 2>&1 | grep -q "Skipping.*binary"; then
+        echo -e "  ${GREEN}✓ PASS${NC}: test.jar (binary file skipped by default)"
+        ((passed++))
+    else
+        echo -e "  ${RED}✗ FAIL${NC}: test.jar (binary file was not skipped)"
+        ((failed++))
+    fi
+    
+    ((total++))
+    # Test that binary files are scanned with --include-binary
+    if "$SCANNER" --include-binary "${SCRIPT_DIR}/test.jar" 2>&1 | grep -q "Scanning.*test.jar"; then
+        echo -e "  ${GREEN}✓ PASS${NC}: test.jar (binary file scanned with --include-binary)"
+        ((passed++))
+    else
+        echo -e "  ${RED}✗ FAIL${NC}: test.jar (binary file not scanned with --include-binary)"
+        ((failed++))
+    fi
+fi
+
+echo ""
+
 # Test that malicious files are STILL caught even with exclusion flags
 echo -e "${YELLOW}Testing malicious files with exclusion flags (should still detect)...${NC}"
 for file in "${SCRIPT_DIR}"/*injection* "${SCRIPT_DIR}"/*trojan*; do
