@@ -176,7 +176,8 @@ is_binary_file() {
     esac
     
     # Use file command to check MIME type
-    local mime_type=$(file -b --mime-type "$file" 2>/dev/null)
+    local mime_type
+    mime_type=$(file -b --mime-type "$file" 2>/dev/null)
     
     # Check if MIME type indicates binary
     case "$mime_type" in
@@ -202,7 +203,8 @@ is_binary_file() {
     
     # Check if file command says it's binary
     # Note: Avoid matching "shell script text executable" - we want actual binary executables
-    local file_desc=$(file "$file" 2>/dev/null)
+    local file_desc
+    file_desc=$(file "$file" 2>/dev/null)
     if echo "$file_desc" | grep -qiE "executable.*binary|archive|compressed|image data|audio|video"; then
         return 0
     fi
