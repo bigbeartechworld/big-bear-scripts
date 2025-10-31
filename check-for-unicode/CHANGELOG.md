@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.1] - 2025-10-30 Binary File False Positive Fix
+
+### Added
+- 🚫 **Automatic Binary File Skipping**: Scanner now automatically skips binary files by default to prevent false positives
+  - Skips archives: `.jar`, `.war`, `.ear`, `.zip`, `.tar`, `.gz`, etc.
+  - Skips images: `.jpg`, `.png`, `.gif`, `.svg`, `.webp`, etc.
+  - Skips videos: `.mp4`, `.avi`, `.mov`, `.mkv`, etc.
+  - Skips audio: `.mp3`, `.wav`, `.ogg`, `.flac`, etc.
+  - Skips executables: `.exe`, `.dll`, `.so`, `.dylib`, etc.
+  - Skips fonts: `.ttf`, `.otf`, `.woff`, `.woff2`, etc.
+  - Skips binary documents: `.pdf`, `.doc`, `.docx`, `.xls`, etc.
+- 🔧 **`--include-binary` Flag**: Force scanning of binary files when needed
+- 🧪 **Binary File Tests**: Added test suite coverage for binary file handling
+  - Test binary files are skipped by default
+  - Test binary files are scanned with `--include-binary` flag
+
+### Fixed
+- 🐛 **False Positives in Binary Files**: Files like `.jar`, `.zip`, `.png`, `.pdf` no longer trigger false detections
+- 🐛 **Shell Script Detection**: Fixed issue where shell scripts were incorrectly classified as binary executables
+- 🔧 **File Type Detection**: Improved binary detection using both file extension and MIME type checks
+
+### Changed
+- 📈 **Version**: Bumped from 2.1.0 to 2.1.1
+- 📚 **Documentation**: Updated README with binary file handling information
+- 📚 **Help Text**: Added `--include-binary` flag documentation
+- 🔍 **is_binary_file()**: New function for comprehensive binary file detection
+- 🧪 **Test Suite**: Now includes 11 tests (up from 9)
+
+### Security
+- ✅ **Maintained Security**: All text-based threats are still detected
+- ✅ **Smart Defaults**: Only scans text files where Unicode attacks are relevant
+- ✅ **User Control**: Users can still force scan binary files if needed with `--include-binary`
+
 ## [2.1.0] - 2025-10-23 False Positive Fix
 
 ### Added

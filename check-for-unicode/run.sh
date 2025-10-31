@@ -5,7 +5,7 @@
 # Including Trojan Source attacks (CVE-2021-42574) and other invisible characters
 
 # Script configuration
-VERSION="2.1.0"
+VERSION="2.1.1"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Command-line options (defaults)
@@ -15,6 +15,7 @@ SEVERITY_FILTER=""
 ALLOWLIST_FILE="${SCRIPT_DIR}/.unicode-allowlist"
 EXCLUDE_EMOJIS=false
 EXCLUDE_COMMON_UNICODE=false
+INCLUDE_BINARY=false
 
 # Check dependencies
 check_dependencies() {
@@ -49,14 +50,17 @@ OPTIONS:
     --allowlist FILE    Path to allowlist file (default: .unicode-allowlist)
     --exclude-emojis    Exclude emoji characters and variation selectors (reduces false positives)
     --exclude-common    Exclude common Unicode like smart quotes, dashes (very permissive)
+    --include-binary    Include binary files (archives, images, executables, etc.)
+                        By default, only text files are scanned to avoid false positives
 
 EXAMPLES:
-    $0 ./src/                              # Scan directory
+    $0 ./src/                              # Scan directory (text files only)
     $0 script.py                          # Scan single file
     $0 --quiet --json ./app/ > results.json  # JSON output for CI
     $0 --severity critical,high ./        # Only show critical/high
     $0 --exclude-emojis ./ui/             # Skip emoji characters in UI code
     $0 --exclude-common ./docs/           # Very permissive for documentation
+    $0 --include-binary ./                # Scan all files including binaries
 
 EXIT CODES:
     0 - No threats detected
@@ -124,6 +128,93 @@ is_common_unicode() {
     [[ "$unicode_code" =~ ^203[9A]$ ]] && return 0
     # Per mille: U+2030
     [[ "$unicode_code" == "2030" ]] && return 0
+    return 1
+}
+
+# Check if file is binary (non-text)
+is_binary_file() {
+    local file=$1
+    
+    # Check by file extension first (faster)
+    case "${file##*.}" in
+        # Archives
+        jar|war|ear|zip|tar|gz|tgz|bz2|xz|7z|rar|iso)
+            return 0
+            ;;
+        # Images
+        jpg|jpeg|png|gif|bmp|ico|svg|webp|tiff|tif|psd)
+            return 0
+            ;;
+        # Videos
+        mp4|avi|mov|wmv|flv|mkv|webm|m4v)
+            return 0
+            ;;
+        # Audio
+        mp3|wav|ogg|flac|aac|wma|m4a)
+            return 0
+            ;;
+        # Executables and libraries
+        exe|dll|so|dylib|a|o|class|pyc|pyo|beam)
+            return 0
+            ;;
+        # Documents (binary formats)
+        pdf|doc|docx|xls|xlsx|ppt|pptx|odt|ods|odp)
+            return 0
+            ;;
+        # Fonts
+        ttf|otf|woff|woff2|eot)
+            return 0
+            ;;
+        # Databases
+        db|sqlite|sqlite3)
+            return 0
+            ;;
+        # Other binary formats
+        bin|dat|pkg|deb|rpm|dmg)
+            return 0
+            ;;
+    esac
+    
+    # Use file command to check MIME type
+    local mime_type
+    mime_type=$(file -b --mime-type "$file" 2>/dev/null)
+    
+    # Check if MIME type indicates binary
+    case "$mime_type" in
+        application/x-executable|\
+        application/x-sharedlib|\
+        application/x-object|\
+        application/x-archive|\
+        application/zip|\
+        application/gzip|\
+        application/x-tar|\
+        application/x-bzip2|\
+        application/x-xz|\
+        application/java-archive|\
+        application/pdf|\
+        application/octet-stream|\
+        image/*|\
+        video/*|\
+        audio/*|\
+        font/*)
+            return 0
+            ;;
+    esac
+    
+    # Check if file command says it's binary
+    # Note: Avoid matching "shell script text executable" - we want actual binary executables
+    local file_desc
+    file_desc=$(file "$file" 2>/dev/null)
+    if echo "$file_desc" | grep -qiE "executable.*binary|archive|compressed|image data|audio|video"; then
+        return 0
+    fi
+    
+    # Exclude shell scripts and other text-based executables
+    if echo "$file_desc" | grep -qi "text"; then
+        return 1
+    fi
+    
+    # Not binary
     return 1
 }
 
@@ -439,6 +530,10 @@ while [[ $# -gt 0 ]]; do
             EXCLUDE_COMMON_UNICODE=true
             shift
             ;;
+        --include-binary)
+            INCLUDE_BINARY=true
+            shift
+            ;;
         -*)
             echo "Error: Unknown option: $1" >&2
             echo "Use --help for usage information" >&2
@@ -464,7 +559,7 @@ load_allowlist
 # Show header unless in quiet or JSON mode
 if [ "$QUIET_MODE" = false ] && [ "$JSON_OUTPUT" = false ]; then
     echo -e "\033[1;35m╔══════════════════════════════════════════════════════════════╗\033[0m"
-    echo -e "\033[1;35m║         Big Bear Unicode Security Scanner v2.1.0 AI+         ║\033[0m"
+    echo -e "\033[1;35m║         Big Bear Unicode Security Scanner v2.1.1 AI+         ║\033[0m"
     echo -e "\033[1;35m║       Detecting dangerous Unicode & AI injection attacks      ║\033[0m"
     echo -e "\033[1;35m║                       Please support me!                     ║\033[0m"
     echo -e "\033[1;35m║               https://ko-fi.com/bigbeartechworld             ║\033[0m"
@@ -482,6 +577,15 @@ declare -a json_results
 # Single file search function
 search_file() {
     file="$1"
+    
+    # Skip binary files unless --include-binary is set
+    if [ "$INCLUDE_BINARY" = false ] && is_binary_file "$file"; then
+        if [ "$QUIET_MODE" = false ] && [ "$JSON_OUTPUT" = false ]; then
+            echo -e "\n\033[1;34mSkipping:\033[0m $file \033[90m(binary file)\033[0m"
+        fi
+        ((total_files++))
+        return
+    fi
     
     if [ "$QUIET_MODE" = false ] && [ "$JSON_OUTPUT" = false ]; then
         echo -e "\n\033[1;34mScanning:\033[0m $file"
