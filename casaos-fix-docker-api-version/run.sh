@@ -9,10 +9,18 @@
 # Support: https://ko-fi.com/bigbeartechworld
 #
 
-set -e
+# Don't use set -e because we have intentional error handling
+set -o pipefail
+
+# Initialize SUDO variable early
+if [ "$EUID" -eq 0 ]; then
+  SUDO=""
+else
+  SUDO="sudo"
+fi
 
 echo "=========================================="
-echo "BigBear CasaOS Docker Version Fix Script"
+echo "BigBear CasaOS Docker Version Fix Script 1.1.0"
 echo "=========================================="
 echo ""
 echo "Here are some links:"
@@ -38,7 +46,12 @@ readonly CONTAINERD_VERSION="1.7.28-1"
 display_versions() {
   echo "Current Docker versions:"
   if command -v docker &>/dev/null; then
-    docker version 2>&1 || echo "Unable to get full version info due to API mismatch"
+    $SUDO docker version 2>&1 || echo "Unable to get full version info due to API mismatch"
+    echo ""
+    
+    # Also show installed package versions for clarity
+    echo "Installed Docker packages:"
+    dpkg -l | grep -E "docker-ce|containerd.io" | awk '{print $2, $3}' 2>/dev/null || echo "Unable to query package versions"
     echo ""
   else
     echo "Docker command not found"
@@ -435,6 +448,21 @@ downgrade_docker() {
   $SUDO apt-mark unhold docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin 2>/dev/null || true
   echo ""
 
+  # Check if Docker is already installed and remove it to ensure clean downgrade
+  if dpkg -l | grep -qE "docker-ce|containerd.io"; then
+    echo "Removing existing Docker packages to ensure clean installation..."
+    
+    # Stop Docker services before removal
+    echo "Stopping Docker services before package removal..."
+    $SUDO systemctl stop docker.socket 2>/dev/null || true
+    $SUDO systemctl stop docker 2>/dev/null || true
+    $SUDO systemctl stop containerd 2>/dev/null || true
+    sleep 2
+    
+    $SUDO apt-get remove -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin 2>/dev/null || true
+    echo ""
+  fi
+
   # Install specific Docker version compatible with CasaOS
   echo "Installing Docker version compatible with CasaOS (24.0.7)..."
   
@@ -463,35 +491,40 @@ downgrade_docker() {
   echo "Installing containerd.io=${CONTAINERD_FULL}"
   echo ""
   
-  $SUDO apt-get install -y --allow-downgrades \
+  if ! $SUDO apt-get install -y --allow-downgrades \
     docker-ce-cli=${DOCKER_CLI_FULL} \
     docker-ce=${DOCKER_CE_FULL} \
     containerd.io=${CONTAINERD_FULL} \
     docker-buildx-plugin \
-    docker-compose-plugin || {
+    docker-compose-plugin; then
       echo ""
       echo "Specific version installation failed. Trying alternative method..."
       echo ""
       
       # Fallback: try without the full version string but keep containerd specific
-      $SUDO apt-get install -y --allow-downgrades \
+      if ! $SUDO apt-get install -y --allow-downgrades \
         docker-ce=5:24.0.* \
         docker-ce-cli=5:24.0.* \
         containerd.io=${CONTAINERD_FULL} \
         docker-buildx-plugin \
-        docker-compose-plugin || {
+        docker-compose-plugin; then
           # Last resort: try with pattern match for containerd
           echo ""
           echo "Trying with containerd.io version pattern..."
           echo ""
-          $SUDO apt-get install -y --allow-downgrades \
+          if ! $SUDO apt-get install -y --allow-downgrades \
             docker-ce=5:24.0.* \
             docker-ce-cli=5:24.0.* \
             containerd.io=1.7.28-1* \
             docker-buildx-plugin \
-            docker-compose-plugin
-        }
-    }
+            docker-compose-plugin; then
+              echo ""
+              echo "ERROR: All installation methods failed!"
+              echo "Please check your internet connection and try again."
+              return 1
+          fi
+      fi
+  fi
   echo ""
 
   # Hold packages to prevent auto-upgrade
@@ -619,14 +652,14 @@ downgrade_docker() {
       echo ""
       
       # Additional test: Try to run a simple container to check for runtime errors
-      echo "Testing container creation..."
-      if $SUDO docker run --rm hello-world >/dev/null 2>&1; then
+      echo "Testing container creation (this may take a moment to download the test image)..."
+      if timeout 60 $SUDO docker run --rm hello-world >/dev/null 2>&1; then
         echo "✓ Container test successful - Docker is fully functional"
       else
         echo "⚠ Container test failed - attempting to fix runtime issues..."
         
         # Check for the specific sysctl permission error
-        test_output=$($SUDO docker run --rm hello-world 2>&1 || true)
+        test_output=$(timeout 60 $SUDO docker run --rm hello-world 2>&1 || true)
         if echo "$test_output" | grep -q "open sysctl.*permission denied"; then
           echo ""
           echo "Detected: Container runtime sysctl permission error (CVE-2025-52881)"
@@ -670,7 +703,7 @@ downgrade_docker() {
           echo ""
           
           # Ask for user confirmation
-          read -p "Do you want to proceed with Docker reset? (yes/no): " -r
+          read -p "Do you want to proceed with Docker reset? (yes/no): " -r REPLY 2>/dev/null || REPLY="no"
           echo ""
           
           if [[ $REPLY =~ ^[Yy][Ee][Ss]$ ]] || [[ $REPLY =~ ^[Yy]$ ]]; then
@@ -684,8 +717,10 @@ downgrade_docker() {
             
             # Backup important data
             timestamp=$(date +%Y%m%d_%H%M%S)
-            echo "Creating backup at /var/lib/docker.backup.$timestamp ..."
-            $SUDO mv /var/lib/docker /var/lib/docker.backup.$timestamp
+            if [ -d /var/lib/docker ]; then
+              echo "Creating backup at /var/lib/docker.backup.$timestamp ..."
+              $SUDO mv /var/lib/docker /var/lib/docker.backup.$timestamp
+            fi
             
             # Recreate Docker directory structure
             echo "Creating fresh Docker directory structure..."
@@ -812,11 +847,15 @@ main() {
   echo "Docker Configuration Complete!"
   echo "=========================================="
   echo ""
-  echo "Current Docker versions:"
-  docker version 2>&1 || echo "Unable to get Docker version"
+  echo "Installed Docker Package Versions:"
+  dpkg -l | grep -E "docker-ce|containerd.io" | awk '{print "  " $2 " = " $3}' 2>/dev/null || echo "Unable to query package versions"
+  echo ""
+  echo "Docker API Version:"
+  $SUDO docker version 2>&1 || echo "Unable to get Docker version"
   echo ""
   if command -v docker &>/dev/null; then
-    docker compose version 2>&1 || echo "Unable to get Docker Compose version"
+    echo "Docker Compose Version:"
+    $SUDO docker compose version 2>&1 || echo "Unable to get Docker Compose version"
   fi
   echo ""
   
