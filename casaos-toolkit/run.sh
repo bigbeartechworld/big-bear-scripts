@@ -31,7 +31,7 @@ print_header() {
 # Function to display menu
 show_menu() {
     clear
-    print_header "BigBearCasaOS Toolkit V0.0.1"
+    print_header "BigBearCasaOS Toolkit V0.1.0"
 
     echo "Here are some links:"
     echo "https://community.bigbeartechworld.com"
