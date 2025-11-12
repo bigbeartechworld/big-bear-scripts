@@ -20,7 +20,7 @@ else
 fi
 
 echo "=========================================="
-echo "BigBear CasaOS Docker Version Fix Script 1.1.0"
+echo "BigBear CasaOS Docker Version Fix Script 1.2.0"
 echo "=========================================="
 echo ""
 echo "Here are some links:"
@@ -122,6 +122,53 @@ check_containerd_version() {
   local version=$(dpkg -l | grep containerd.io | awk '{print $3}' | head -n1)
   echo "$version"
   return 0
+}
+
+# Function to add user to docker group
+add_user_to_docker_group() {
+  # Only add user to docker group if not running as root
+  if [ "$EUID" -ne 0 ]; then
+    local current_user=$(whoami)
+    
+    # Check if docker group exists
+    if getent group docker >/dev/null 2>&1; then
+      # Check if user is already in docker group
+      if ! groups "$current_user" | grep -q '\bdocker\b'; then
+        echo "Adding user '$current_user' to docker group..."
+        $SUDO usermod -aG docker "$current_user"
+        echo ""
+        echo "✓ User added to docker group"
+        echo ""
+        echo "=========================================="
+        echo "IMPORTANT: Group Change Requires New Login"
+        echo "=========================================="
+        echo ""
+        echo "For the docker group permission to take effect, you need to:"
+        echo "  1. Log out of your current session"
+        echo "  2. Log back in"
+        echo ""
+        echo "OR run this command to start a new shell with updated groups:"
+        echo "  newgrp docker"
+        echo ""
+        echo "After that, you'll be able to run docker commands without sudo."
+        echo ""
+        return 0
+      else
+        echo "User '$current_user' is already in docker group"
+        echo ""
+        return 0
+      fi
+    else
+      echo "Warning: docker group does not exist"
+      echo "This is unusual - Docker installation may have issues"
+      echo ""
+      return 1
+    fi
+  else
+    echo "Running as root - skipping docker group addition"
+    echo ""
+    return 0
+  fi
 }
 
 # Function to stop CasaOS services
@@ -346,9 +393,9 @@ remove_standalone_docker_compose() {
   fi
 }
 
-# Function to clean Docker state and fix permissions
+# Function to clean Docker runtime state
 clean_docker_state() {
-  echo "Cleaning Docker state and fixing permissions..."
+  echo "Cleaning Docker runtime state..."
   
   # Stop Docker first
   if $SUDO systemctl is-active --quiet docker; then
@@ -358,48 +405,30 @@ clean_docker_state() {
     echo ""
   fi
   
-  # Clean up Docker runtime state
+  # Clean up Docker runtime state (sockets, pids)
   if [ -d /var/run/docker ]; then
-    echo "Cleaning Docker runtime state..."
+    echo "Cleaning Docker sockets and pids..."
     $SUDO rm -rf /var/run/docker/*
     echo ""
   fi
   
   # Fix containerd state
   if [ -d /run/containerd ]; then
-    echo "Cleaning containerd state..."
+    echo "Cleaning containerd runtime state..."
     $SUDO rm -rf /run/containerd/runc
     $SUDO rm -rf /run/containerd/io.containerd*
     echo ""
   fi
   
-  # Clean up any stale container state
+  # Clean up any stale container pids
   if [ -d /var/lib/docker/containers ]; then
-    echo "Cleaning container state..."
+    echo "Cleaning stale container pids..."
     $SUDO find /var/lib/docker/containers -name "*.pid" -delete 2>/dev/null || true
     echo ""
   fi
   
-  # Fix core Docker directory permissions
-  if [ -d /var/lib/docker ]; then
-    echo "Fixing Docker directory permissions..."
-    $SUDO chown -R root:root /var/lib/docker
-    $SUDO chmod 711 /var/lib/docker
-    
-    # Fix specific subdirectories
-    [ -d /var/lib/docker/overlay2 ] && $SUDO chmod 755 /var/lib/docker/overlay2
-    [ -d /var/lib/docker/containers ] && $SUDO chmod 755 /var/lib/docker/containers
-    [ -d /var/lib/docker/image ] && $SUDO chmod 755 /var/lib/docker/image
-    [ -d /var/lib/docker/volumes ] && $SUDO chmod 755 /var/lib/docker/volumes
-    
-    # Fix overlay2/l directory which is critical for overlay2 storage
-    if [ -d /var/lib/docker/overlay2/l ]; then
-      $SUDO chmod 700 /var/lib/docker/overlay2/l
-    fi
-    echo ""
-  fi
-  
-  echo "Docker state cleanup complete"
+  echo "Docker runtime cleanup complete"
+  echo "Docker will set its own directory permissions on startup"
   echo ""
 }
 
@@ -546,17 +575,6 @@ downgrade_docker() {
   fi
   echo ""
 
-  # Fix overlay2 permissions if directory exists
-  if [ -d /var/lib/docker/overlay2 ]; then
-    echo "Fixing overlay2 directory permissions..."
-    $SUDO chown -R root:root /var/lib/docker/overlay2
-    $SUDO chmod -R 755 /var/lib/docker/overlay2
-    if [ -d /var/lib/docker/overlay2/l ]; then
-      $SUDO chmod 700 /var/lib/docker/overlay2/l
-    fi
-    echo ""
-  fi
-
   # Reload systemd and restart Docker service
   echo "Reloading systemd daemon..."
   $SUDO systemctl daemon-reload
@@ -569,13 +587,15 @@ downgrade_docker() {
   sleep 2
   echo ""
 
-  # Start docker socket first, then service
-  echo "Starting Docker socket..."
+  # Enable and start docker socket first, then service
+  echo "Enabling and starting Docker socket..."
+  $SUDO systemctl enable docker.socket 2>/dev/null || true
   $SUDO systemctl start docker.socket
   sleep 1
   echo ""
 
-  echo "Starting Docker service..."
+  echo "Enabling and starting Docker service..."
+  $SUDO systemctl enable docker
   $SUDO systemctl start docker
   sleep 3
   echo ""
@@ -722,16 +742,11 @@ downgrade_docker() {
               $SUDO mv /var/lib/docker /var/lib/docker.backup.$timestamp
             fi
             
-            # Recreate Docker directory structure
-            echo "Creating fresh Docker directory structure..."
-            $SUDO mkdir -p /var/lib/docker
-            $SUDO chmod 711 /var/lib/docker
-            
             # Clean all runtime state
             $SUDO rm -rf /run/containerd/* 2>/dev/null || true
             $SUDO rm -rf /var/run/docker/* 2>/dev/null || true
             
-            # Restart services
+            # Restart services - Docker will recreate /var/lib/docker with correct permissions
             echo "Starting Docker services..."
             $SUDO systemctl start containerd 2>/dev/null || true
             sleep 2
@@ -859,8 +874,11 @@ main() {
   fi
   echo ""
   
+  echo "Step 8: Configuring Docker permissions..."
+  add_user_to_docker_group
+  
   if [ "$CASAOS_INSTALLED" = true ]; then
-    echo "Step 8: Restarting CasaOS services..."
+    echo "Step 9: Restarting CasaOS services..."
     start_casaos_services
     
     echo "=========================================="
