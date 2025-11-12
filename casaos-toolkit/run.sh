@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 
-# BigBearCasaOS Complete Toolkit - Diagnostics and Fixes
+# BigBear CasaOS Complete Toolkit - Diagnostics and Fixes
 # Run with sudo permissions
+#
+# GitHub: https://github.com/BigBearTechWorld
+# Community: https://community.bigbeartechworld.com
+# Support: https://ko-fi.com/bigbeartechworld
+#
 
 # Set text colors
 RED='\033[0;31m'
@@ -38,11 +43,10 @@ show_menu() {
     
     echo "===================="
     echo "1. Run Diagnostics - Collect system information and logs for troubleshooting"
-    echo "2. Fix Docker Permissions - Reset directory permissions and ownership for Docker"
-    echo "3. Fix Docker Overlay2 Issues - Repair storage driver problems and rebuild Docker structure"
-    echo "4. Full System Reset - Clean reinstall of Docker and CasaOS (Backs up existing data from /var/lib/docker)"
-    echo "5. Exit - Close the toolkit"
-    read -p "Enter your choice (1-5): " choice
+    echo "2. Fix Docker Overlay2 Issues - Repair storage driver problems and rebuild Docker structure"
+    echo "3. Full System Reset - Clean reinstall of Docker and CasaOS (Backs up existing data from /var/lib/docker)"
+    echo "4. Exit - Close the toolkit"
+    read -p "Enter your choice (1-4): " choice
 }
 
 
@@ -84,31 +88,6 @@ run_diagnostics() {
     echo -e "Diagnostic file created: ${YELLOW}casaos_diagnostics_${timestamp}.tar.gz${NC}"
 }
 
-# Function to fix Docker permissions
-fix_docker_permissions() {
-    echo -e "${YELLOW}Fixing Docker permissions...${NC}"
-    
-    # Ensure Docker is running
-    if ! systemctl is-active --quiet docker; then
-        systemctl start docker
-    fi
-
-    # Create necessary directories
-    mkdir -p /var/lib/docker/tmp
-    chmod 755 /var/lib/docker/tmp
-
-    # Reset permissions
-    chown -R root:root /var/lib/docker
-    chmod -R 755 /var/lib/docker
-
-    # Clean up and restart
-    docker system prune -f
-    systemctl restart docker
-    systemctl restart casaos
-
-    echo -e "${GREEN}Docker permissions have been reset!${NC}"
-}
-
 # Function to fix Overlay2 issues
 fix_overlay2() {
     echo -e "${YELLOW}Fixing Docker overlay2 issues...${NC}"
@@ -122,16 +101,8 @@ fix_overlay2() {
         mv /var/lib/docker /var/lib/docker.bak.$(date +%Y%m%d_%H%M%S)
     fi
 
-    # Create fresh directory structure
+    # Create fresh directory structure - Docker will set proper permissions
     mkdir -p /var/lib/docker
-    mkdir -p /var/lib/docker/overlay2
-    mkdir -p /var/lib/docker/overlay2/l
-    mkdir -p /var/lib/docker/tmp
-
-    # Set permissions
-    chown -R root:root /var/lib/docker
-    chmod -R 755 /var/lib/docker
-    chmod 700 /var/lib/docker/overlay2/l
 
     # Configure Docker daemon
     mkdir -p /etc/docker
@@ -144,7 +115,7 @@ fix_overlay2() {
 }
 EOL
 
-    # Restart services
+    # Restart services - Docker daemon will create proper directory structure
     systemctl daemon-reload
     systemctl start docker
     systemctl start casaos
@@ -196,18 +167,7 @@ full_reset() {
 }
 EOL
 
-        # Create fresh Docker directory structure
-        mkdir -p /var/lib/docker
-        mkdir -p /var/lib/docker/overlay2
-        mkdir -p /var/lib/docker/overlay2/l
-        mkdir -p /var/lib/docker/tmp
-
-        # Set permissions
-        chown -R root:root /var/lib/docker
-        chmod -R 755 /var/lib/docker
-        chmod 700 /var/lib/docker/overlay2/l
-
-        # Restart services
+        # Restart services - Docker daemon will create proper directory structure
         systemctl daemon-reload
         systemctl start docker
         systemctl start casaos
@@ -226,15 +186,12 @@ while true; do
             run_diagnostics
             ;;
         2)
-            fix_docker_permissions
-            ;;
-        3)
             fix_overlay2
             ;;
-        4)
+        3)
             full_reset
             ;;
-        5)
+        4)
             echo -e "${GREEN}Exiting...${NC}"
             exit 0
             ;;
