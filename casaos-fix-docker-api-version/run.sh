@@ -393,9 +393,9 @@ remove_standalone_docker_compose() {
   fi
 }
 
-# Function to clean Docker state and fix permissions
+# Function to clean Docker runtime state
 clean_docker_state() {
-  echo "Cleaning Docker state and fixing permissions..."
+  echo "Cleaning Docker runtime state..."
   
   # Stop Docker first
   if $SUDO systemctl is-active --quiet docker; then
@@ -405,48 +405,30 @@ clean_docker_state() {
     echo ""
   fi
   
-  # Clean up Docker runtime state
+  # Clean up Docker runtime state (sockets, pids)
   if [ -d /var/run/docker ]; then
-    echo "Cleaning Docker runtime state..."
+    echo "Cleaning Docker sockets and pids..."
     $SUDO rm -rf /var/run/docker/*
     echo ""
   fi
   
   # Fix containerd state
   if [ -d /run/containerd ]; then
-    echo "Cleaning containerd state..."
+    echo "Cleaning containerd runtime state..."
     $SUDO rm -rf /run/containerd/runc
     $SUDO rm -rf /run/containerd/io.containerd*
     echo ""
   fi
   
-  # Clean up any stale container state
+  # Clean up any stale container pids
   if [ -d /var/lib/docker/containers ]; then
-    echo "Cleaning container state..."
+    echo "Cleaning stale container pids..."
     $SUDO find /var/lib/docker/containers -name "*.pid" -delete 2>/dev/null || true
     echo ""
   fi
   
-  # Fix core Docker directory permissions
-  if [ -d /var/lib/docker ]; then
-    echo "Fixing Docker directory permissions..."
-    $SUDO chown -R root:root /var/lib/docker
-    $SUDO chmod 711 /var/lib/docker
-    
-    # Fix specific subdirectories
-    [ -d /var/lib/docker/overlay2 ] && $SUDO chmod 755 /var/lib/docker/overlay2
-    [ -d /var/lib/docker/containers ] && $SUDO chmod 755 /var/lib/docker/containers
-    [ -d /var/lib/docker/image ] && $SUDO chmod 755 /var/lib/docker/image
-    [ -d /var/lib/docker/volumes ] && $SUDO chmod 755 /var/lib/docker/volumes
-    
-    # Fix overlay2/l directory which is critical for overlay2 storage
-    if [ -d /var/lib/docker/overlay2/l ]; then
-      $SUDO chmod 700 /var/lib/docker/overlay2/l
-    fi
-    echo ""
-  fi
-  
-  echo "Docker state cleanup complete"
+  echo "Docker runtime cleanup complete"
+  echo "Docker will set its own directory permissions on startup"
   echo ""
 }
 
@@ -592,17 +574,6 @@ downgrade_docker() {
     echo "No daemon.json found - Docker will use default settings"
   fi
   echo ""
-
-  # Fix overlay2 permissions if directory exists
-  if [ -d /var/lib/docker/overlay2 ]; then
-    echo "Fixing overlay2 directory permissions..."
-    $SUDO chown -R root:root /var/lib/docker/overlay2
-    $SUDO chmod -R 755 /var/lib/docker/overlay2
-    if [ -d /var/lib/docker/overlay2/l ]; then
-      $SUDO chmod 700 /var/lib/docker/overlay2/l
-    fi
-    echo ""
-  fi
 
   # Reload systemd and restart Docker service
   echo "Reloading systemd daemon..."
@@ -771,16 +742,11 @@ downgrade_docker() {
               $SUDO mv /var/lib/docker /var/lib/docker.backup.$timestamp
             fi
             
-            # Recreate Docker directory structure
-            echo "Creating fresh Docker directory structure..."
-            $SUDO mkdir -p /var/lib/docker
-            $SUDO chmod 711 /var/lib/docker
-            
             # Clean all runtime state
             $SUDO rm -rf /run/containerd/* 2>/dev/null || true
             $SUDO rm -rf /var/run/docker/* 2>/dev/null || true
             
-            # Restart services
+            # Restart services - Docker will recreate /var/lib/docker with correct permissions
             echo "Starting Docker services..."
             $SUDO systemctl start containerd 2>/dev/null || true
             sleep 2
