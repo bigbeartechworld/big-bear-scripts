@@ -124,6 +124,53 @@ check_containerd_version() {
   return 0
 }
 
+# Function to add user to docker group
+add_user_to_docker_group() {
+  # Only add user to docker group if not running as root
+  if [ "$EUID" -ne 0 ]; then
+    local current_user=$(whoami)
+    
+    # Check if docker group exists
+    if getent group docker >/dev/null 2>&1; then
+      # Check if user is already in docker group
+      if ! groups "$current_user" | grep -q '\bdocker\b'; then
+        echo "Adding user '$current_user' to docker group..."
+        $SUDO usermod -aG docker "$current_user"
+        echo ""
+        echo "✓ User added to docker group"
+        echo ""
+        echo "=========================================="
+        echo "IMPORTANT: Group Change Requires New Login"
+        echo "=========================================="
+        echo ""
+        echo "For the docker group permission to take effect, you need to:"
+        echo "  1. Log out of your current session"
+        echo "  2. Log back in"
+        echo ""
+        echo "OR run this command to start a new shell with updated groups:"
+        echo "  newgrp docker"
+        echo ""
+        echo "After that, you'll be able to run docker commands without sudo."
+        echo ""
+        return 0
+      else
+        echo "User '$current_user' is already in docker group"
+        echo ""
+        return 0
+      fi
+    else
+      echo "Warning: docker group does not exist"
+      echo "This is unusual - Docker installation may have issues"
+      echo ""
+      return 1
+    fi
+  else
+    echo "Running as root - skipping docker group addition"
+    echo ""
+    return 0
+  fi
+}
+
 # Function to stop CasaOS services
 stop_casaos_services() {
   echo "Stopping CasaOS services..."
@@ -569,13 +616,15 @@ downgrade_docker() {
   sleep 2
   echo ""
 
-  # Start docker socket first, then service
-  echo "Starting Docker socket..."
+  # Enable and start docker socket first, then service
+  echo "Enabling and starting Docker socket..."
+  $SUDO systemctl enable docker.socket 2>/dev/null || true
   $SUDO systemctl start docker.socket
   sleep 1
   echo ""
 
-  echo "Starting Docker service..."
+  echo "Enabling and starting Docker service..."
+  $SUDO systemctl enable docker
   $SUDO systemctl start docker
   sleep 3
   echo ""
@@ -859,8 +908,11 @@ main() {
   fi
   echo ""
   
+  echo "Step 8: Configuring Docker permissions..."
+  add_user_to_docker_group
+  
   if [ "$CASAOS_INSTALLED" = true ]; then
-    echo "Step 8: Restarting CasaOS services..."
+    echo "Step 9: Restarting CasaOS services..."
     start_casaos_services
     
     echo "=========================================="
