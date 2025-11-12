@@ -20,7 +20,7 @@ else
 fi
 
 echo "=========================================="
-echo "BigBear CasaOS Docker Version Fix Script 1.1.0"
+echo "BigBear CasaOS Docker Version Fix Script 1.2.0"
 echo "=========================================="
 echo ""
 echo "Here are some links:"
