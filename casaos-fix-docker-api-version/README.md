@@ -38,16 +38,21 @@ This script automatically detects LXC environments and installs **containerd.io 
 - Detects your operating system (Debian/Ubuntu-based)
 - **Detects LXC/Proxmox environment** and adjusts containerd version accordingly
 - Checks if CasaOS is installed
+- **Checks for and removes Snap Docker installations** that would conflict
+- **Verifies Docker binary locations** to ensure no conflicts
 - Stops CasaOS services temporarily (if installed)
 - Cleans Docker runtime state and fixes permissions
+- **Ensures all Docker processes are completely terminated** before upgrade
 - Fixes overlay2 directory permissions
 - Downgrades Docker to version 24.0.7 (compatible with both CasaOS and modern systems)
+- **Verifies the dockerd binary version** after installation
 - **Installs containerd.io 1.7.28-1** in LXC/Proxmox to avoid CVE-2025-52881 AppArmor issues
 - Configures Docker daemon with proper settings
 - Holds Docker packages to prevent automatic upgrades
 - Removes standalone docker-compose if present
 - Installs Docker Compose plugin
-- Restarts Docker service properly
+- **Ensures Docker daemon fully restarts with new binaries**
+- **Verifies API version actually changed** after installation
 - Restarts CasaOS services (if installed)
 - **Intelligently detects and fixes** the sysctl permission denied error
 
@@ -55,6 +60,22 @@ This script automatically detects LXC environments and installs **containerd.io 
 
 ```bash
 bash -c "$(wget -qLO - https://raw.githubusercontent.com/bigbeartechworld/big-bear-scripts/master/casaos-fix-docker-api-version/run.sh)"
+```
+
+## Testing the Script
+
+A test script is available to verify the fix script works correctly. See [TEST-SCRIPT-README.md](TEST-SCRIPT-README.md) for details.
+
+```bash
+# Download and run the test script
+wget https://raw.githubusercontent.com/bigbeartechworld/big-bear-scripts/master/casaos-fix-docker-api-version/test-script.sh
+chmod +x test-script.sh
+
+# Run the full test (upgrade Docker, then fix it)
+./test-script.sh full
+
+# Or check current status
+./test-script.sh status
 ```
 
 ## Can't Resolve Domain
@@ -99,6 +120,42 @@ Both the client and server API versions should now be compatible. The script ins
 - Supports API version 1.43 (compatible with older CasaOS)
 - Is stable and well-tested
 - Is held at this version to prevent auto-upgrades
+
+### If the API version didn't change
+
+If you ran the script but `docker version` still shows a newer API version (1.45, 1.46, etc.), the script will display diagnostic information. Common causes and fixes:
+
+1. **Docker daemon didn't restart properly**
+   ```bash
+   sudo systemctl stop docker
+   sudo pkill -9 dockerd
+   sudo systemctl start docker
+   docker version
+   ```
+
+2. **Verify the dockerd binary was replaced**
+   ```bash
+   dockerd --version
+   # Should show: Docker version 24.0.7
+   ```
+
+3. **Check for multiple Docker installations**
+   ```bash
+   which -a docker
+   which -a dockerd
+   # Should only show /usr/bin/docker and /usr/bin/dockerd
+   ```
+
+4. **Verify package versions**
+   ```bash
+   dpkg -l | grep docker-ce
+   # Should show version 5:24.0.7-1~...
+   ```
+
+If the packages show the correct version (24.0.7) but `docker version` still shows a newer API:
+- The dockerd process may not have fully restarted
+- Try rebooting your system
+- Check for lingering processes: `ps aux | grep dockerd`
 
 ## Preventing future issues
 
