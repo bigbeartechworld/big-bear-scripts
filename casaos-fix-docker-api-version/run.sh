@@ -82,6 +82,89 @@ detect_os() {
   echo ""
 }
 
+# Function to check for and remove Snap Docker installation
+check_and_remove_snap_docker() {
+  echo "Checking for Docker installed via Snap..."
+  
+  # Check if snap is installed
+  if ! command -v snap &>/dev/null; then
+    echo "Snap is not installed on this system"
+    echo ""
+    return 0
+  fi
+  
+  # Check if Docker is installed via snap
+  if snap list docker &>/dev/null 2>&1; then
+    echo ""
+    echo "=========================================="
+    echo "WARNING: Docker installed via Snap detected!"
+    echo "=========================================="
+    echo ""
+    echo "Docker installed via Snap will conflict with the apt-based installation."
+    echo "The Snap version must be removed for this script to work properly."
+    echo ""
+    
+    # Check if docker command is from snap
+    if command -v docker &>/dev/null; then
+      docker_path=$(which docker)
+      if [[ "$docker_path" == *"snap"* ]]; then
+        echo "Current docker command is from Snap: $docker_path"
+        echo ""
+      fi
+    fi
+    
+    echo "Removing Docker Snap package..."
+    $SUDO snap remove --purge docker
+    echo ""
+    
+    # Wait a moment for snap to fully clean up
+    sleep 2
+    
+    echo "✓ Snap Docker removed"
+    echo ""
+    return 0
+  else
+    echo "No Docker Snap package found"
+    echo ""
+    return 0
+  fi
+}
+
+# Function to check for multiple Docker binaries
+check_docker_binary_locations() {
+  echo "Checking for Docker binary locations..."
+  
+  # Find all docker binaries
+  local docker_binaries=$(which -a docker 2>/dev/null || true)
+  
+  if [ -z "$docker_binaries" ]; then
+    echo "No docker binary found in PATH"
+    echo ""
+    return 0
+  fi
+  
+  # Count how many we found
+  local count=$(echo "$docker_binaries" | wc -l)
+  
+  if [ "$count" -gt 1 ]; then
+    echo ""
+    echo "=========================================="
+    echo "WARNING: Multiple Docker binaries found!"
+    echo "=========================================="
+    echo ""
+    echo "$docker_binaries"
+    echo ""
+    echo "This may cause version conflicts."
+    echo "After installation, verify which binary is being used with: which docker"
+    echo ""
+  else
+    echo "Docker binary location: $docker_binaries"
+    echo ""
+  fi
+  
+  return 0
+}
+
 # Function to check if CasaOS is installed
 check_casaos() {
   if command -v casaos &>/dev/null; then
@@ -122,6 +205,116 @@ check_containerd_version() {
   local version=$(dpkg -l | grep containerd.io | awk '{print $3}' | head -n1)
   echo "$version"
   return 0
+}
+
+# Function to get Docker API version
+get_docker_api_version() {
+  local api_version=""
+  
+  # Try to get the API version from docker version command
+  if command -v docker &>/dev/null; then
+    # Get server API version
+    api_version=$($SUDO docker version --format '{{.Server.APIVersion}}' 2>/dev/null || echo "")
+    
+    if [ -z "$api_version" ]; then
+      # Fallback: try to parse from docker version output
+      api_version=$($SUDO docker version 2>/dev/null | grep -A 5 "Server:" | grep "API version:" | awk '{print $3}' | head -n1 || echo "")
+    fi
+  fi
+  
+  echo "$api_version"
+  return 0
+}
+
+# Function to verify dockerd binary version
+verify_dockerd_binary_version() {
+  echo "Verifying dockerd binary version..."
+  
+  if ! command -v dockerd &>/dev/null; then
+    echo "⚠ WARNING: dockerd binary not found"
+    return 1
+  fi
+  
+  local dockerd_version=$(dockerd --version 2>/dev/null | head -n1)
+  echo "dockerd binary version: $dockerd_version"
+  
+  # Check if it contains "24.0"
+  if echo "$dockerd_version" | grep -q "24.0"; then
+    echo "✓ dockerd binary is version 24.0.x"
+    echo ""
+    return 0
+  else
+    echo "⚠ WARNING: dockerd binary may not be the expected version"
+    echo ""
+    return 1
+  fi
+}
+
+# Function to ensure all Docker processes are terminated
+ensure_docker_processes_stopped() {
+  echo "Ensuring all Docker processes are completely stopped..."
+  
+  local max_attempts=3
+  local attempt=0
+  
+  while [ $attempt -lt $max_attempts ]; do
+    # Check for dockerd
+    if pgrep -x dockerd >/dev/null 2>&1; then
+      echo "Attempt $((attempt + 1)): Found running dockerd processes, terminating..."
+      $SUDO pkill -9 dockerd 2>/dev/null || true
+      sleep 2
+      attempt=$((attempt + 1))
+    else
+      echo "✓ No dockerd processes running"
+      break
+    fi
+  done
+  
+  # Final check
+  if pgrep -x dockerd >/dev/null 2>&1; then
+    echo "⚠ WARNING: dockerd processes still running after $max_attempts attempts"
+    echo "Listing running dockerd processes:"
+    pgrep -a dockerd || true
+    echo ""
+    return 1
+  fi
+  
+  echo ""
+  return 0
+}
+
+# Function to verify Docker API version after installation
+verify_docker_api_version() {
+  echo "Verifying Docker API version..."
+  
+  local api_version=$(get_docker_api_version)
+  
+  if [ -z "$api_version" ]; then
+    echo "⚠ WARNING: Could not determine Docker API version"
+    echo "This might indicate a problem with the Docker installation"
+    echo ""
+    return 1
+  fi
+  
+  echo "Current Docker API version: $api_version"
+  echo ""
+  
+  # Check if it's 1.43 or compatible
+  if [[ "$api_version" == "1.43" ]] || [[ "$api_version" == "1.44" ]]; then
+    echo "✓ Docker API version is compatible with CasaOS (1.43/1.44)"
+    echo ""
+    return 0
+  else
+    echo "⚠ WARNING: Docker API version is $api_version"
+    echo "Expected: 1.43 or 1.44 for CasaOS compatibility"
+    echo ""
+    echo "This might indicate:"
+    echo "  - The Docker package downgrade didn't work properly"
+    echo "  - A different Docker binary is being used"
+    echo "  - The Docker daemon didn't restart with the new version"
+    echo ""
+    return 1
+  fi
 }
 
 # Function to add user to docker group
@@ -405,6 +598,31 @@ clean_docker_state() {
     echo ""
   fi
   
+  # Stop docker socket to prevent auto-restart
+  if $SUDO systemctl is-active --quiet docker.socket; then
+    echo "Stopping Docker socket..."
+    $SUDO systemctl stop docker.socket
+    sleep 1
+    echo ""
+  fi
+  
+  # Kill any remaining dockerd processes that might be hanging
+  echo "Checking for lingering Docker processes..."
+  if pgrep -x dockerd >/dev/null 2>&1; then
+    echo "Found running dockerd processes, terminating them..."
+    $SUDO pkill -9 dockerd 2>/dev/null || true
+    sleep 2
+    echo ""
+  fi
+  
+  # Kill containerd-shim processes that might be keeping containers alive
+  if pgrep containerd-shim >/dev/null 2>&1; then
+    echo "Found containerd-shim processes, terminating them..."
+    $SUDO pkill -9 containerd-shim 2>/dev/null || true
+    sleep 1
+    echo ""
+  fi
+  
   # Clean up Docker runtime state (sockets, pids)
   if [ -d /var/run/docker ]; then
     echo "Cleaning Docker sockets and pids..."
@@ -560,6 +778,10 @@ downgrade_docker() {
   echo "Holding Docker packages at current version..."
   $SUDO apt-mark hold docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
   echo ""
+  
+  # Verify the dockerd binary version before starting
+  echo "Step 7.1: Verifying installed dockerd binary..."
+  verify_dockerd_binary_version
 
   # Check if daemon.json exists and validate it
   if [ -f /etc/docker/daemon.json ]; then
@@ -580,24 +802,38 @@ downgrade_docker() {
   $SUDO systemctl daemon-reload
   echo ""
 
-  # Stop docker socket to prevent auto-restart
-  echo "Stopping Docker socket and service..."
+  # Ensure Docker is completely stopped before starting
+  echo "Step 7.2: Ensuring Docker is completely stopped..."
   $SUDO systemctl stop docker.socket 2>/dev/null || true
-  $SUDO systemctl stop docker
+  $SUDO systemctl stop docker 2>/dev/null || true
+  sleep 2
+  
+  # Use the new function to ensure processes are stopped
+  ensure_docker_processes_stopped
+  
+  # Stop containerd to ensure clean slate
+  echo "Restarting containerd for clean state..."
+  $SUDO systemctl stop containerd 2>/dev/null || true
+  sleep 1
+  if pgrep -x containerd >/dev/null 2>&1; then
+    $SUDO pkill -9 containerd 2>/dev/null || true
+    sleep 1
+  fi
+  $SUDO systemctl start containerd 2>/dev/null || true
   sleep 2
   echo ""
 
   # Enable and start docker socket first, then service
-  echo "Enabling and starting Docker socket..."
+  echo "Step 7.3: Enabling and starting Docker socket..."
   $SUDO systemctl enable docker.socket 2>/dev/null || true
   $SUDO systemctl start docker.socket
   sleep 1
   echo ""
 
-  echo "Enabling and starting Docker service..."
+  echo "Step 7.4: Enabling and starting Docker service..."
   $SUDO systemctl enable docker
   $SUDO systemctl start docker
-  sleep 3
+  sleep 5  # Give Docker more time to fully initialize
   echo ""
   
   # Verify Docker is running
@@ -802,6 +1038,12 @@ main() {
   check_sudo
   detect_os
   
+  echo "Step 1a: Checking for Snap Docker installation..."
+  check_and_remove_snap_docker
+  
+  echo "Step 1b: Checking for multiple Docker binaries..."
+  check_docker_binary_locations
+  
   echo "Step 2: Checking for CasaOS..."
   CASAOS_INSTALLED=false
   if check_casaos; then
@@ -820,6 +1062,16 @@ main() {
   
   echo "Step 3: Displaying current Docker versions..."
   display_versions
+  
+  # Store the current API version before making changes
+  echo "Step 3a: Checking current Docker API version..."
+  CURRENT_API_VERSION=$(get_docker_api_version)
+  if [ -n "$CURRENT_API_VERSION" ]; then
+    echo "Current Docker API version: $CURRENT_API_VERSION"
+  else
+    echo "Unable to determine current Docker API version"
+  fi
+  echo ""
   
   echo "Step 4: Stopping CasaOS services (if installed)..."
   if [ "$CASAOS_INSTALLED" = true ]; then
@@ -865,7 +1117,7 @@ main() {
   echo "Installed Docker Package Versions:"
   dpkg -l | grep -E "docker-ce|containerd.io" | awk '{print "  " $2 " = " $3}' 2>/dev/null || echo "Unable to query package versions"
   echo ""
-  echo "Docker API Version:"
+  echo "Docker Version Information:"
   $SUDO docker version 2>&1 || echo "Unable to get Docker version"
   echo ""
   if command -v docker &>/dev/null; then
@@ -873,6 +1125,90 @@ main() {
     $SUDO docker compose version 2>&1 || echo "Unable to get Docker Compose version"
   fi
   echo ""
+  
+  echo "Step 7a: Verifying Docker API version change..."
+  if ! verify_docker_api_version; then
+    echo "=========================================="
+    echo "WARNING: Docker API Version Issue Detected"
+    echo "=========================================="
+    echo ""
+    echo "The Docker API version may not have changed as expected."
+    echo ""
+    
+    # Additional diagnostics
+    echo "Diagnostic Information:"
+    echo ""
+    
+    # Check dockerd binary version
+    if command -v dockerd &>/dev/null; then
+      echo "1. dockerd binary version:"
+      dockerd --version 2>/dev/null || echo "   Unable to get dockerd version"
+      echo ""
+    fi
+    
+    # Check running dockerd process
+    if pgrep -x dockerd >/dev/null 2>&1; then
+      echo "2. Running dockerd process(es):"
+      pgrep -a dockerd 2>/dev/null || true
+      echo ""
+    else
+      echo "2. No dockerd process is currently running"
+      echo ""
+    fi
+    
+    # Check which docker binary
+    echo "3. Docker binary in use:"
+    which docker 2>/dev/null || echo "   docker command not found"
+    if command -v docker &>/dev/null; then
+      local docker_bin=$(which docker)
+      local docker_real=$(readlink -f "$docker_bin" 2>/dev/null || echo "$docker_bin")
+      echo "   Binary location: $docker_bin"
+      if [ "$docker_bin" != "$docker_real" ]; then
+        echo "   -> Points to: $docker_real"
+      fi
+    fi
+    echo ""
+    
+    # Check installed packages
+    echo "4. Installed Docker packages:"
+    dpkg -l | grep -E "docker-ce|containerd.io" | awk '{print "   " $2 " = " $3}' 2>/dev/null || echo "   Unable to query packages"
+    echo ""
+    
+    # Check Docker service status
+    echo "5. Docker service status:"
+    if $SUDO systemctl is-active --quiet docker; then
+      echo "   Docker service is active"
+    else
+      echo "   Docker service is NOT active"
+    fi
+    echo ""
+    
+    echo "=========================================="
+    echo "Troubleshooting steps:"
+    echo "=========================================="
+    echo ""
+    echo "  1. Verify the dockerd binary was actually replaced:"
+    echo "     dockerd --version"
+    echo "     (Should show version 24.0.7)"
+    echo ""
+    echo "  2. Manually restart Docker to ensure new binary loads:"
+    echo "     sudo systemctl stop docker"
+    echo "     sudo pkill -9 dockerd"
+    echo "     sudo systemctl start docker"
+    echo "     docker version"
+    echo ""
+    echo "  3. Check if there are multiple Docker installations:"
+    echo "     which -a docker"
+    echo "     which -a dockerd"
+    echo ""
+    echo "  4. Verify package installation succeeded:"
+    echo "     dpkg -l | grep docker-ce"
+    echo "     (Should show version 5:24.0.7-1~...)"
+    echo ""
+    echo "  5. Check Docker daemon logs for errors:"
+    echo "     sudo journalctl -u docker --no-pager -n 50"
+    echo ""
+  fi
   
   echo "Step 8: Configuring Docker permissions..."
   add_user_to_docker_group
@@ -904,6 +1240,20 @@ main() {
   
   echo "The Docker client version error should now be resolved."
   echo "You can now run your Docker commands without API version issues."
+  echo ""
+  
+  # Final verification
+  NEW_API_VERSION=$(get_docker_api_version)
+  if [ -n "$NEW_API_VERSION" ]; then
+    if [ "$CURRENT_API_VERSION" != "$NEW_API_VERSION" ]; then
+      echo "✓ Docker API version changed from $CURRENT_API_VERSION to $NEW_API_VERSION"
+    else
+      echo "⚠ Docker API version unchanged: $NEW_API_VERSION"
+      echo "  This may indicate the downgrade didn't take effect."
+      echo "  Please review the troubleshooting steps above."
+    fi
+  fi
+  echo ""
 }
 
 # Execute the main function
