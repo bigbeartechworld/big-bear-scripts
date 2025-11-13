@@ -94,7 +94,7 @@ check_and_remove_snap_docker() {
   fi
   
   # Check if Docker is installed via snap
-  if snap list docker &>/dev/null 2>&1; then
+  if snap list docker &>/dev/null; then
     echo ""
     echo "=========================================="
     echo "WARNING: Docker installed via Snap detected!"
@@ -114,15 +114,25 @@ check_and_remove_snap_docker() {
     fi
     
     echo "Removing Docker Snap package..."
-    $SUDO snap remove --purge docker
-    echo ""
-    
-    # Wait a moment for snap to fully clean up
-    sleep 2
-    
-    echo "✓ Snap Docker removed"
-    echo ""
-    return 0
+    if $SUDO snap remove --purge docker; then
+      # Wait a moment for snap to fully clean up
+      sleep 2
+      
+      # Verify removal succeeded
+      if snap list docker &>/dev/null; then
+        echo "⚠ WARNING: Snap Docker still appears to be installed after removal attempt"
+        echo ""
+        return 1
+      fi
+      
+      echo "✓ Snap Docker removed successfully"
+      echo ""
+      return 0
+    else
+      echo "⚠ WARNING: Failed to remove Snap Docker"
+      echo ""
+      return 1
+    fi
   else
     echo "No Docker Snap package found"
     echo ""
@@ -1039,7 +1049,17 @@ main() {
   detect_os
   
   echo "Step 1a: Checking for Snap Docker installation..."
-  check_and_remove_snap_docker
+  if ! check_and_remove_snap_docker; then
+    echo "=========================================="
+    echo "ERROR: Failed to remove Snap Docker"
+    echo "=========================================="
+    echo ""
+    echo "The script cannot continue with Snap Docker installed."
+    echo "Please manually remove Snap Docker and try again:"
+    echo "  sudo snap remove --purge docker"
+    echo ""
+    exit 1
+  fi
   
   echo "Step 1b: Checking for multiple Docker binaries..."
   check_docker_binary_locations
