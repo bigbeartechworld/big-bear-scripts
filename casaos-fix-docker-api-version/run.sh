@@ -20,7 +20,7 @@ else
 fi
 
 echo "=========================================="
-echo "BigBear CasaOS Docker Version Fix Script 1.2.1"
+echo "BigBear CasaOS Docker Version Fix Script 1.3.0"
 echo "=========================================="
 echo ""
 echo "Here are some links:"
@@ -663,6 +663,25 @@ clean_docker_state() {
 # Function to downgrade Docker to compatible version
 downgrade_docker() {
   echo "Setting up Docker repository..."
+  
+  # Clean up any existing Docker repository configurations to avoid conflicts
+  echo "Cleaning up old Docker repository configurations..."
+  if [ -f /etc/apt/sources.list.d/docker.list ]; then
+    echo "Removing existing docker.list..."
+    $SUDO rm -f /etc/apt/sources.list.d/docker.list
+  fi
+  
+  # Also check for other potential Docker repo files
+  if ls /etc/apt/sources.list.d/docker*.list 1> /dev/null 2>&1; then
+    echo "Removing other Docker repository files..."
+    $SUDO rm -f /etc/apt/sources.list.d/docker*.list
+  fi
+  
+  # Clean apt cache to force fresh download
+  echo "Cleaning apt cache..."
+  $SUDO apt-get clean
+  $SUDO rm -rf /var/lib/apt/lists/*
+  
   $SUDO apt-get update
   echo ""
 
@@ -690,7 +709,7 @@ downgrade_docker() {
     $SUDO tee /etc/apt/sources.list.d/docker.list > /dev/null
   echo ""
 
-  # Update package index with new repository
+  # Update package index with new repository (force refresh)
   echo "Updating package lists with Docker repository..."
   $SUDO apt-get update
   echo ""
@@ -716,7 +735,11 @@ downgrade_docker() {
     $SUDO systemctl stop containerd 2>/dev/null || true
     sleep 2
     
-    $SUDO apt-get remove -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin 2>/dev/null || true
+    $SUDO apt-get remove --purge -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin 2>/dev/null || true
+    
+    # Clean up unused dependencies
+    echo "Cleaning up unused dependencies..."
+    $SUDO apt-get autoremove -y
     echo ""
   fi
 
