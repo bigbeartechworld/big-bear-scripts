@@ -750,6 +750,72 @@ EOL
   return 1
 }
 
+# Function to set up Docker repository
+setup_docker_repository() {
+  echo "Setting up Docker repository..."
+  
+  # Clean up any existing Docker repository configurations to avoid conflicts
+  echo "Cleaning up old Docker repository configurations..."
+  if [ -f /etc/apt/sources.list.d/docker.list ]; then
+    echo "Removing existing docker.list..."
+    $SUDO rm -f /etc/apt/sources.list.d/docker.list
+  fi
+  
+  # Also check for other potential Docker repo files
+  if ls /etc/apt/sources.list.d/docker*.list 1> /dev/null 2>&1; then
+    echo "Removing other Docker repository files..."
+    $SUDO rm -f /etc/apt/sources.list.d/docker*.list
+  fi
+  
+  # Clean apt cache to force fresh download
+  echo "Cleaning apt cache..."
+  $SUDO apt-get clean
+  $SUDO rm -rf /var/lib/apt/lists/*
+  
+  $SUDO apt-get update
+  echo ""
+
+  echo "Installing prerequisites..."
+  if ! $SUDO apt-get install -y \
+    apt-transport-https \
+    ca-certificates \
+    curl \
+    gnupg \
+    lsb-release; then
+    echo "ERROR: Failed to install prerequisites"
+    return 1
+  fi
+  echo ""
+
+  # Add Docker's official GPG key
+  echo "Adding Docker's official GPG key..."
+  $SUDO install -m 0755 -d /etc/apt/keyrings
+  if ! $SUDO curl -fsSL https://download.docker.com/linux/${OS}/gpg -o /etc/apt/keyrings/docker.asc; then
+    echo "ERROR: Failed to download Docker GPG key"
+    return 1
+  fi
+  $SUDO chmod a+r /etc/apt/keyrings/docker.asc
+  echo ""
+
+  # Set up the stable repository
+  echo "Setting up Docker repository..."
+  echo \
+    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/${OS} \
+    ${VERSION_CODENAME} stable" | \
+    $SUDO tee /etc/apt/sources.list.d/docker.list > /dev/null
+  echo ""
+
+  # Update package index with new repository (force refresh)
+  echo "Updating package lists with Docker repository..."
+  if ! $SUDO apt-get update; then
+    echo "ERROR: Failed to update package lists"
+    return 1
+  fi
+  echo ""
+  
+  return 0
+}
+
 # Function to remove standalone Docker Compose if it exists
 remove_standalone_docker_compose() {
   if command -v docker-compose &>/dev/null; then
@@ -853,57 +919,11 @@ resolve_docker_version() {
 
 # Function to downgrade Docker to compatible version
 downgrade_docker() {
-  echo "Setting up Docker repository..."
-  
-  # Clean up any existing Docker repository configurations to avoid conflicts
-  echo "Cleaning up old Docker repository configurations..."
-  if [ -f /etc/apt/sources.list.d/docker.list ]; then
-    echo "Removing existing docker.list..."
-    $SUDO rm -f /etc/apt/sources.list.d/docker.list
+  # Set up Docker repository
+  if ! setup_docker_repository; then
+    echo "ERROR: Failed to set up Docker repository"
+    return 1
   fi
-  
-  # Also check for other potential Docker repo files
-  if ls /etc/apt/sources.list.d/docker*.list 1> /dev/null 2>&1; then
-    echo "Removing other Docker repository files..."
-    $SUDO rm -f /etc/apt/sources.list.d/docker*.list
-  fi
-  
-  # Clean apt cache to force fresh download
-  echo "Cleaning apt cache..."
-  $SUDO apt-get clean
-  $SUDO rm -rf /var/lib/apt/lists/*
-  
-  $SUDO apt-get update
-  echo ""
-
-  echo "Installing prerequisites..."
-  $SUDO apt-get install -y \
-    apt-transport-https \
-    ca-certificates \
-    curl \
-    gnupg \
-    lsb-release
-  echo ""
-
-  # Add Docker's official GPG key
-  echo "Adding Docker's official GPG key..."
-  $SUDO install -m 0755 -d /etc/apt/keyrings
-  $SUDO curl -fsSL https://download.docker.com/linux/${OS}/gpg -o /etc/apt/keyrings/docker.asc
-  $SUDO chmod a+r /etc/apt/keyrings/docker.asc
-  echo ""
-
-  # Set up the stable repository
-  echo "Setting up Docker repository..."
-  echo \
-    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/${OS} \
-    ${VERSION_CODENAME} stable" | \
-    $SUDO tee /etc/apt/sources.list.d/docker.list > /dev/null
-  echo ""
-
-  # Update package index with new repository (force refresh)
-  echo "Updating package lists with Docker repository..."
-  $SUDO apt-get update
-  echo ""
 
   # Get available versions
   echo "Available Docker CE versions:"
@@ -1351,45 +1371,11 @@ main() {
       echo "Docker is not installed. Installing latest Docker version..."
       echo ""
       
-      # Set up Docker repository and install latest version
-      echo "Setting up Docker repository..."
-      
-      # Clean up any existing Docker repository configurations
-      if [ -f /etc/apt/sources.list.d/docker.list ]; then
-        $SUDO rm -f /etc/apt/sources.list.d/docker.list
+      # Set up Docker repository
+      if ! setup_docker_repository; then
+        echo "ERROR: Failed to set up Docker repository"
+        exit 1
       fi
-      
-      $SUDO apt-get update
-      echo ""
-      
-      echo "Installing prerequisites..."
-      $SUDO apt-get install -y \
-        apt-transport-https \
-        ca-certificates \
-        curl \
-        gnupg \
-        lsb-release
-      echo ""
-      
-      # Add Docker's official GPG key
-      echo "Adding Docker's official GPG key..."
-      $SUDO install -m 0755 -d /etc/apt/keyrings
-      $SUDO curl -fsSL https://download.docker.com/linux/${OS}/gpg -o /etc/apt/keyrings/docker.asc
-      $SUDO chmod a+r /etc/apt/keyrings/docker.asc
-      echo ""
-      
-      # Set up the stable repository
-      echo "Setting up Docker repository..."
-      echo \
-        "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/${OS} \
-        ${VERSION_CODENAME} stable" | \
-        $SUDO tee /etc/apt/sources.list.d/docker.list > /dev/null
-      echo ""
-      
-      # Update package index
-      echo "Updating package lists..."
-      $SUDO apt-get update
-      echo ""
       
       # Check if we're in LXC to determine containerd version
       local containerd_spec="containerd.io"
