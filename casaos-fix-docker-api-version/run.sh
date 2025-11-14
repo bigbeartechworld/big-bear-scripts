@@ -20,7 +20,7 @@ else
 fi
 
 echo "=========================================="
-echo "BigBear CasaOS Docker Version Fix Script 1.3.0"
+echo "BigBear CasaOS Docker Version Fix Script 1.4.0"
 echo "=========================================="
 echo ""
 echo "Here are some links:"
@@ -34,10 +34,10 @@ echo "=========================================="
 echo ""
 
 # Compatible Docker versions for CasaOS
-# Using Docker 24.x series which supports API 1.43 (older CasaOS versions)
-# but is also compatible with API 1.44 (newer Docker daemons)
-readonly DOCKER_CE_VERSION="5:24.0.7-1~"
-readonly DOCKER_CLI_VERSION="5:24.0.7-1~"
+# Using Docker 24.0.x series which supports API 1.43
+# Docker 24.0.x is the last version series that provides API 1.43
+# (Docker 25.0+ uses API 1.44 and newer)
+# DOCKER_VERSION will be resolved at runtime to find latest available 24.0.x
 # Using containerd.io 1.7.28-1 to avoid CVE-2025-52881 AppArmor issues in LXC/Proxmox
 # Version 1.7.28-2 and newer cause "permission denied" errors on sysctl in nested containers
 readonly CONTAINERD_VERSION="1.7.28-1"
@@ -79,6 +79,108 @@ detect_os() {
     exit 1
   fi
   echo "Detected OS: $OS ${VERSION_CODENAME}"
+  echo ""
+}
+
+# Function to check if Docker 24.0.x is available for this OS version
+check_docker_availability() {
+  echo "Checking Docker 24.0.x availability for $OS $VERSION_CODENAME..."
+  
+  # List of OS versions known to NOT have Docker 24.0.x packages
+  # Verified by checking actual package availability at https://download.docker.com/linux/
+  # Each entry includes the earliest Docker version available for that OS:
+  local unsupported_versions=(
+    "debian:trixie"   # Debian 13 - earliest version: Docker 28.0.0 (no 24.0.x available)
+    "ubuntu:noble"    # Ubuntu 24.04 - earliest version: Docker 26.0.0 (no 24.0.x available)
+    "ubuntu:oracular" # Ubuntu 24.10 - earliest version: Docker 27.3.0 (no 24.0.x available)
+  )
+  
+  # Known supported versions (have Docker 24.0.x available):
+  # - Ubuntu 20.04 (focal)
+  # - Ubuntu 22.04 (jammy)
+  # - Debian 11 (bullseye)
+  # - Debian 12 (bookworm)
+  
+  local current_os="${OS}:${VERSION_CODENAME}"
+  
+  for unsupported in "${unsupported_versions[@]}"; do
+    if [ "$current_os" = "$unsupported" ]; then
+      echo ""
+      echo "=========================================="
+      echo "ERROR: Unsupported OS Version Detected"
+      echo "=========================================="
+      echo ""
+      echo "Your system: $OS $VERSION_CODENAME"
+      echo ""
+      echo "Docker 24.0.x is NOT available for your OS version."
+      echo "The Docker repository for $VERSION_CODENAME only provides Docker 28.x and newer."
+      echo ""
+      echo "This script is designed to install Docker 24.0.x for CasaOS compatibility."
+      echo ""
+      echo "=========================================="
+      echo "Recommended Solutions:"
+      echo "=========================================="
+      echo ""
+      
+      if [ "$OS" = "debian" ] && [ "$VERSION_CODENAME" = "trixie" ]; then
+        echo "For Debian trixie (testing) users:"
+      echo ""
+      echo "  Option 1: Downgrade to Debian bookworm (stable)"
+      echo "    Debian trixie is the testing branch. Consider using Debian 12 (bookworm)"
+      echo "    which is the current stable release and fully supports Docker 24.0.x."
+      echo ""
+        echo "  Option 2: Install latest CasaOS (if available)"
+        echo "    Check if a newer version of CasaOS supports Docker 28.x:"
+        echo "    https://github.com/IceWhaleTech/CasaOS"
+        echo ""
+        echo "  Option 3: Manual Docker installation"
+        echo "    Install Docker 28.x and manually configure CasaOS to work with it."
+        echo "    Note: This may require CasaOS code modifications."
+        echo ""
+        
+        if grep -q "Raspberry Pi" /proc/cpuinfo 2>/dev/null || grep -q "BCM" /proc/cpuinfo 2>/dev/null; then
+          echo "  Option 4: For Raspberry Pi - Reinstall with Raspberry Pi OS (Debian bookworm)"
+          echo "    The latest stable Raspberry Pi OS should be based on Debian bookworm (stable),"
+          echo "    not trixie. Consider reinstalling with Raspberry Pi OS based on Debian bookworm."
+          echo ""
+        fi
+      elif [[ "$VERSION_CODENAME" == "noble" ]] || [[ "$VERSION_CODENAME" == "oracular" ]]; then
+        echo "For Ubuntu 24.04+ users:"
+        echo ""
+        echo "  Option 1: Use Ubuntu 22.04 LTS (Jammy)"
+        echo "    Ubuntu 22.04 LTS is fully supported and has Docker 24.0.x available."
+        echo ""
+        echo "  Option 2: Install latest CasaOS (if available)"
+        echo "    Check if a newer version of CasaOS supports Docker 28.x:"
+        echo "    https://github.com/IceWhaleTech/CasaOS"
+        echo ""
+        echo "  Option 3: Manual Docker installation"
+        echo "    Install Docker 28.x and manually configure CasaOS to work with it."
+        echo ""
+      fi
+      
+      echo "=========================================="
+      echo "Why This Matters:"
+      echo "=========================================="
+      echo ""
+      echo "CasaOS requires Docker API version 1.43, which is provided by Docker 24.0.x."
+      echo "Docker 24.0.x is the last version series that supports API 1.43."
+      echo "Newer Docker versions (25.x+) use API version 1.44+, which may not be"
+      echo "compatible with older CasaOS installations."
+      echo ""
+      echo "Mixing package repositories from different OS versions can cause"
+      echo "system instability and is not recommended."
+      echo ""
+      echo "For more information:"
+      echo "  • CasaOS Issues: https://github.com/IceWhaleTech/CasaOS/issues"
+      echo "  • Community Forum: https://community.bigbeartechworld.com"
+      echo ""
+      
+      exit 1
+    fi
+  done
+  
+  echo "✓ Docker 24.0.x should be available for your OS version"
   echo ""
 }
 
@@ -248,7 +350,7 @@ verify_dockerd_binary_version() {
   local dockerd_version=$(dockerd --version 2>/dev/null | head -n1)
   echo "dockerd binary version: $dockerd_version"
   
-  # Check if it contains "24.0"
+  # Check if it contains "24.0" (accepts both 24.0.7 and 24.0.9)
   if echo "$dockerd_version" | grep -q "24.0"; then
     echo "✓ dockerd binary is version 24.0.x"
     echo ""
@@ -660,6 +762,26 @@ clean_docker_state() {
   echo ""
 }
 
+# Function to resolve latest available Docker 24.0.x version
+resolve_docker_version() {
+  # Query available docker-ce versions and filter for 24.0.x
+  local available_version=$(apt-cache madison docker-ce 2>/dev/null | \
+    grep -E '5:24\.0\.[0-9]+-1~' | \
+    head -n1 | \
+    awk '{print $3}')
+  
+  if [ -z "$available_version" ]; then
+    echo "ERROR: Could not find any Docker 24.0.x version in repository" >&2
+    echo "Available versions:" >&2
+    apt-cache madison docker-ce 2>/dev/null | head -n 5 >&2
+    return 1
+  fi
+  
+  # Only output the version string, no other messages
+  echo "$available_version"
+  return 0
+}
+
 # Function to downgrade Docker to compatible version
 downgrade_docker() {
   echo "Setting up Docker repository..."
@@ -743,13 +865,41 @@ downgrade_docker() {
     echo ""
   fi
 
-  # Install specific Docker version compatible with CasaOS
-  echo "Installing Docker version compatible with CasaOS (24.0.7)..."
+  # Resolve exact Docker version at runtime
+  echo "Resolving exact Docker 24.0.x version from repository..."
+  DOCKER_VERSION=$(resolve_docker_version)
+  if [ $? -ne 0 ] || [ -z "$DOCKER_VERSION" ]; then
+    echo "ERROR: Failed to resolve Docker version"
+    return 1
+  fi
+  echo "Found Docker version: $DOCKER_VERSION"
+  echo ""
   
-  ARCH=$(dpkg --print-architecture)
-  DOCKER_CE_FULL="${DOCKER_CE_VERSION}${OS}~${VERSION_CODENAME}"
-  DOCKER_CLI_FULL="${DOCKER_CLI_VERSION}${OS}~${VERSION_CODENAME}"
+  # Resolve exact containerd version
+  echo "Resolving exact containerd.io version..."
   CONTAINERD_FULL="${CONTAINERD_VERSION}~${OS}~${VERSION_CODENAME}"
+  
+  # Verify containerd version exists
+  if ! apt-cache madison containerd.io 2>/dev/null | grep -q "${CONTAINERD_FULL}"; then
+    echo "Exact containerd version ${CONTAINERD_FULL} not found"
+    echo "Searching for any 1.7.28-1 variant..."
+    CONTAINERD_FULL=$(apt-cache madison containerd.io 2>/dev/null | \
+      grep -E '1\.7\.28-1~' | \
+      head -n1 | \
+      awk '{print $3}')
+    
+    if [ -z "$CONTAINERD_FULL" ]; then
+      echo "ERROR: Could not find containerd.io 1.7.28-1 in repository"
+      echo "Available containerd.io versions:"
+      apt-cache madison containerd.io 2>/dev/null | head -n 5
+      return 1
+    fi
+    echo "Found containerd version: $CONTAINERD_FULL"
+  fi
+  echo ""
+  
+  # Install latest Docker 24.0.x version compatible with CasaOS
+  echo "Installing latest Docker 24.0.x version compatible with CasaOS..."
   
   # Check if we're in LXC and warn about containerd version
   if check_lxc_environment; then
@@ -766,45 +916,30 @@ downgrade_docker() {
     echo ""
   fi
   
-  echo "Installing docker-ce-cli=${DOCKER_CLI_FULL}"
-  echo "Installing docker-ce=${DOCKER_CE_FULL}"
+  # Install with exact versions (no wildcards)
+  echo "Installing docker-ce=${DOCKER_VERSION}"
+  echo "Installing docker-ce-cli=${DOCKER_VERSION}"
   echo "Installing containerd.io=${CONTAINERD_FULL}"
   echo ""
   
   if ! $SUDO apt-get install -y --allow-downgrades \
-    docker-ce-cli=${DOCKER_CLI_FULL} \
-    docker-ce=${DOCKER_CE_FULL} \
+    docker-ce=${DOCKER_VERSION} \
+    docker-ce-cli=${DOCKER_VERSION} \
     containerd.io=${CONTAINERD_FULL} \
     docker-buildx-plugin \
     docker-compose-plugin; then
       echo ""
-      echo "Specific version installation failed. Trying alternative method..."
+      echo "ERROR: Docker installation failed!"
+      echo "Please check your internet connection and try again."
       echo ""
-      
-      # Fallback: try without the full version string but keep containerd specific
-      if ! $SUDO apt-get install -y --allow-downgrades \
-        docker-ce=5:24.0.* \
-        docker-ce-cli=5:24.0.* \
-        containerd.io=${CONTAINERD_FULL} \
-        docker-buildx-plugin \
-        docker-compose-plugin; then
-          # Last resort: try with pattern match for containerd
-          echo ""
-          echo "Trying with containerd.io version pattern..."
-          echo ""
-          if ! $SUDO apt-get install -y --allow-downgrades \
-            docker-ce=5:24.0.* \
-            docker-ce-cli=5:24.0.* \
-            containerd.io=1.7.28-1* \
-            docker-buildx-plugin \
-            docker-compose-plugin; then
-              echo ""
-              echo "ERROR: All installation methods failed!"
-              echo "Please check your internet connection and try again."
-              return 1
-          fi
-      fi
+      echo "Attempted to install:"
+      echo "  docker-ce=${DOCKER_VERSION}"
+      echo "  docker-ce-cli=${DOCKER_VERSION}"
+      echo "  containerd.io=${CONTAINERD_FULL}"
+      return 1
   fi
+  
+  echo "✓ Successfully installed Docker 24.0.x"
   echo ""
 
   # Hold packages to prevent auto-upgrade
@@ -1071,7 +1206,10 @@ main() {
   check_sudo
   detect_os
   
-  echo "Step 1a: Checking for Snap Docker installation..."
+  echo "Step 1a: Verifying Docker 24.0.x availability..."
+  check_docker_availability
+  
+  echo "Step 1b: Checking for Snap Docker installation..."
   if ! check_and_remove_snap_docker; then
     echo "=========================================="
     echo "ERROR: Failed to remove Snap Docker"
@@ -1084,7 +1222,7 @@ main() {
     exit 1
   fi
   
-  echo "Step 1b: Checking for multiple Docker binaries..."
+  echo "Step 1c: Checking for multiple Docker binaries..."
   check_docker_binary_locations
   
   echo "Step 2: Checking for CasaOS..."
@@ -1232,7 +1370,7 @@ main() {
     echo ""
     echo "  1. Verify the dockerd binary was actually replaced:"
     echo "     dockerd --version"
-    echo "     (Should show version 24.0.7)"
+    echo "     (Should show version 24.0.x)"
     echo ""
     echo "  2. Manually restart Docker to ensure new binary loads:"
     echo "     sudo systemctl stop docker"
@@ -1246,7 +1384,7 @@ main() {
     echo ""
     echo "  4. Verify package installation succeeded:"
     echo "     dpkg -l | grep docker-ce"
-    echo "     (Should show version 5:24.0.7-1~...)"
+    echo "     (Should show version 5:24.0.x-1~...)"
     echo ""
     echo "  5. Check Docker daemon logs for errors:"
     echo "     sudo journalctl -u docker --no-pager -n 50"
@@ -1264,7 +1402,7 @@ main() {
     echo "CasaOS Docker Fix Complete!"
     echo "=========================================="
     echo ""
-    echo "Docker has been set to version 24.0.7 (compatible with CasaOS)"
+    echo "Docker has been set to version 24.0.x (compatible with CasaOS)"
     echo "Docker packages have been held to prevent automatic upgrades."
     echo ""
     echo "To allow Docker to be upgraded in the future, run:"
@@ -1275,7 +1413,7 @@ main() {
     echo ""
   else
     echo "=========================================="
-    echo "Docker version has been set to 24.0.7"
+    echo "Docker version has been set to 24.0.x"
     echo "This version is compatible with CasaOS API 1.43"
     echo "=========================================="
     echo ""
