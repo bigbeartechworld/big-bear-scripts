@@ -124,11 +124,11 @@ check_docker_availability() {
       
       if [ "$OS" = "debian" ] && [ "$VERSION_CODENAME" = "trixie" ]; then
         echo "For Debian trixie (testing) users:"
-        echo ""
-        echo "  Option 1: Downgrade to Debian bookworm (stable)"
-        echo "    Debian trixie is the testing branch. Consider using Debian 12 (bookworm)"
-        echo "    which is the current stable release and fully supports Docker 24.0.7."
-        echo ""
+      echo ""
+      echo "  Option 1: Downgrade to Debian bookworm (stable)"
+      echo "    Debian trixie is the testing branch. Consider using Debian 12 (bookworm)"
+      echo "    which is the current stable release and fully supports Docker 24.0.x."
+      echo ""
         echo "  Option 2: Install latest CasaOS (if available)"
         echo "    Check if a newer version of CasaOS supports Docker 28.x:"
         echo "    https://github.com/IceWhaleTech/CasaOS"
@@ -139,9 +139,9 @@ check_docker_availability() {
         echo ""
         
         if grep -q "Raspberry Pi" /proc/cpuinfo 2>/dev/null || grep -q "BCM" /proc/cpuinfo 2>/dev/null; then
-          echo "  Option 4: For Raspberry Pi - Use Raspberry Pi OS based on bookworm"
-          echo "    The latest stable Raspberry Pi OS should be based on Debian bookworm,"
-          echo "    not trixie. Consider reinstalling with the stable release."
+          echo "  Option 4: For Raspberry Pi - Reinstall with Raspberry Pi OS (Debian bookworm)"
+          echo "    The latest stable Raspberry Pi OS should be based on Debian bookworm (stable),"
+          echo "    not trixie. Consider reinstalling with Raspberry Pi OS based on Debian bookworm."
           echo ""
         fi
       elif [[ "$VERSION_CODENAME" == "noble" ]] || [[ "$VERSION_CODENAME" == "oracular" ]]; then
