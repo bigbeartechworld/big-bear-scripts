@@ -37,7 +37,7 @@ echo ""
 # Using Docker 24.0.x series which supports API 1.43
 # Docker 24.0.x is the last version series that provides API 1.43
 # (Docker 25.0+ uses API 1.44 and newer)
-readonly DOCKER_VERSION="5:24.0.*"
+# DOCKER_VERSION will be resolved at runtime to find latest available 24.0.x
 # Using containerd.io 1.7.28-1 to avoid CVE-2025-52881 AppArmor issues in LXC/Proxmox
 # Version 1.7.28-2 and newer cause "permission denied" errors on sysctl in nested containers
 readonly CONTAINERD_VERSION="1.7.28-1"
@@ -762,6 +762,26 @@ clean_docker_state() {
   echo ""
 }
 
+# Function to resolve latest available Docker 24.0.x version
+resolve_docker_version() {
+  # Query available docker-ce versions and filter for 24.0.x
+  local available_version=$(apt-cache madison docker-ce 2>/dev/null | \
+    grep -E '5:24\.0\.[0-9]+-1~' | \
+    head -n1 | \
+    awk '{print $3}')
+  
+  if [ -z "$available_version" ]; then
+    echo "ERROR: Could not find any Docker 24.0.x version in repository" >&2
+    echo "Available versions:" >&2
+    apt-cache madison docker-ce 2>/dev/null | head -n 5 >&2
+    return 1
+  fi
+  
+  # Only output the version string, no other messages
+  echo "$available_version"
+  return 0
+}
+
 # Function to downgrade Docker to compatible version
 downgrade_docker() {
   echo "Setting up Docker repository..."
@@ -845,10 +865,41 @@ downgrade_docker() {
     echo ""
   fi
 
+  # Resolve exact Docker version at runtime
+  echo "Resolving exact Docker 24.0.x version from repository..."
+  DOCKER_VERSION=$(resolve_docker_version)
+  if [ $? -ne 0 ] || [ -z "$DOCKER_VERSION" ]; then
+    echo "ERROR: Failed to resolve Docker version"
+    return 1
+  fi
+  echo "Found Docker version: $DOCKER_VERSION"
+  echo ""
+  
+  # Resolve exact containerd version
+  echo "Resolving exact containerd.io version..."
+  CONTAINERD_FULL="${CONTAINERD_VERSION}~${OS}~${VERSION_CODENAME}"
+  
+  # Verify containerd version exists
+  if ! apt-cache madison containerd.io 2>/dev/null | grep -q "${CONTAINERD_FULL}"; then
+    echo "Exact containerd version ${CONTAINERD_FULL} not found"
+    echo "Searching for any 1.7.28-1 variant..."
+    CONTAINERD_FULL=$(apt-cache madison containerd.io 2>/dev/null | \
+      grep -E '1\.7\.28-1~' | \
+      head -n1 | \
+      awk '{print $3}')
+    
+    if [ -z "$CONTAINERD_FULL" ]; then
+      echo "ERROR: Could not find containerd.io 1.7.28-1 in repository"
+      echo "Available containerd.io versions:"
+      apt-cache madison containerd.io 2>/dev/null | head -n 5
+      return 1
+    fi
+    echo "Found containerd version: $CONTAINERD_FULL"
+  fi
+  echo ""
+  
   # Install latest Docker 24.0.x version compatible with CasaOS
   echo "Installing latest Docker 24.0.x version compatible with CasaOS..."
-  
-  CONTAINERD_FULL="${CONTAINERD_VERSION}~${OS}~${VERSION_CODENAME}"
   
   # Check if we're in LXC and warn about containerd version
   if check_lxc_environment; then
@@ -865,7 +916,7 @@ downgrade_docker() {
     echo ""
   fi
   
-  # Install latest 24.0.x version available
+  # Install with exact versions (no wildcards)
   echo "Installing docker-ce=${DOCKER_VERSION}"
   echo "Installing docker-ce-cli=${DOCKER_VERSION}"
   echo "Installing containerd.io=${CONTAINERD_FULL}"
@@ -877,21 +928,15 @@ downgrade_docker() {
     containerd.io=${CONTAINERD_FULL} \
     docker-buildx-plugin \
     docker-compose-plugin; then
-      # Fallback: try with pattern match for containerd if exact version fails
       echo ""
-      echo "Exact containerd version not found, trying version pattern..."
+      echo "ERROR: Docker installation failed!"
+      echo "Please check your internet connection and try again."
       echo ""
-      if ! $SUDO apt-get install -y --allow-downgrades \
-        docker-ce=${DOCKER_VERSION} \
-        docker-ce-cli=${DOCKER_VERSION} \
-        containerd.io=1.7.28-1* \
-        docker-buildx-plugin \
-        docker-compose-plugin; then
-          echo ""
-          echo "ERROR: Docker installation failed!"
-          echo "Please check your internet connection and try again."
-          return 1
-      fi
+      echo "Attempted to install:"
+      echo "  docker-ce=${DOCKER_VERSION}"
+      echo "  docker-ce-cli=${DOCKER_VERSION}"
+      echo "  containerd.io=${CONTAINERD_FULL}"
+      return 1
   fi
   
   echo "✓ Successfully installed Docker 24.0.x"
