@@ -368,12 +368,22 @@ verify_docker_api_version() {
     return 0
   else
     echo "⚠ WARNING: Docker API version is $api_version"
-    echo "Expected: 1.47 for CasaOS compatibility"
+    echo "Expected: 1.47 for CasaOS compatibility (Docker 28.0.x)"
     echo ""
-    echo "This might indicate:"
-    echo "  - The Docker package installation didn't work properly"
-    echo "  - A different Docker binary is being used"
-    echo "  - The Docker daemon didn't restart with the new version"
+    echo "Current version: $api_version"
+    if [[ "$api_version" > "1.47" ]]; then
+      echo "You have a newer Docker version installed (API $api_version)"
+      echo ""
+      echo "This might indicate:"
+      echo "  - The Docker repository setup failed (check for GPG key conflicts)"
+      echo "  - The Docker package installation didn't work properly"
+      echo "  - You may need to use the 'apply-override' method instead"
+    else
+      echo "This might indicate:"
+      echo "  - The Docker package installation didn't work properly"
+      echo "  - A different Docker binary is being used"
+      echo "  - The Docker daemon didn't restart with the new version"
+    fi
     echo ""
     return 1
   fi
@@ -769,6 +779,18 @@ setup_docker_repository() {
     $SUDO rm -f /etc/apt/sources.list.d/docker*.list
   fi
   
+  # Remove old GPG keys that might conflict
+  echo "Removing old Docker GPG keys..."
+  if [ -f /usr/share/keyrings/docker.gpg ]; then
+    $SUDO rm -f /usr/share/keyrings/docker.gpg
+  fi
+  if [ -f /etc/apt/keyrings/docker.gpg ]; then
+    $SUDO rm -f /etc/apt/keyrings/docker.gpg
+  fi
+  if [ -f /etc/apt/keyrings/docker.asc ]; then
+    $SUDO rm -f /etc/apt/keyrings/docker.asc
+  fi
+  
   # Clean apt cache to force fresh download
   echo "Cleaning apt cache..."
   $SUDO apt-get clean
@@ -875,7 +897,12 @@ clean_docker_state() {
   # Clean up Docker runtime state (sockets, pids)
   if [ -d /var/run/docker ]; then
     echo "Cleaning Docker sockets and pids..."
-    $SUDO rm -rf /var/run/docker/*
+    # Try to remove, but don't fail if network namespaces are busy
+    $SUDO find /var/run/docker -mindepth 1 -maxdepth 1 ! -path '/var/run/docker/netns' -delete 2>/dev/null || true
+    # Try to clean netns, but ignore "device busy" errors
+    if [ -d /var/run/docker/netns ]; then
+      $SUDO find /var/run/docker/netns -type f -delete 2>/dev/null || true
+    fi
     echo ""
   fi
   
