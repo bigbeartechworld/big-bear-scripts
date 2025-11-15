@@ -62,22 +62,6 @@ This script automatically detects LXC environments and installs **containerd.io 
 bash -c "$(wget -qLO - https://raw.githubusercontent.com/bigbeartechworld/big-bear-scripts/master/casaos-fix-docker-api-version/run.sh)"
 ```
 
-## Testing the Script
-
-A test script is available to verify the fix script works correctly. See [TEST-SCRIPT-README.md](TEST-SCRIPT-README.md) for details.
-
-```bash
-# Download and run the test script
-wget https://raw.githubusercontent.com/bigbeartechworld/big-bear-scripts/master/casaos-fix-docker-api-version/test-script.sh
-chmod +x test-script.sh
-
-# Run the full test (upgrade Docker, then fix it)
-./test-script.sh full
-
-# Or check current status
-./test-script.sh status
-```
-
 ## Can't Resolve Domain
 
 To resolve this issue, please follow these steps:
