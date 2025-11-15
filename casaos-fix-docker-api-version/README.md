@@ -9,12 +9,12 @@ This script fixes common Docker errors with CasaOS including:
 ## The Problem
 
 These errors commonly occur with **CasaOS** when:
-1. Docker gets upgraded to a very recent version (API 1.44+) that is incompatible with CasaOS's older Docker client
+1. Docker gets upgraded to a very recent version (API 1.45+) that is incompatible with CasaOS's older Docker client
 2. Docker overlay2 filesystem permissions become corrupted
 3. Container runtime state becomes inconsistent
 4. **NEW**: containerd.io 1.7.28-2 or newer causes AppArmor permission errors in LXC/Proxmox containers
 
-CasaOS uses Docker API 1.43, and when the system Docker gets auto-upgraded or the storage becomes corrupted, it breaks compatibility.
+Older CasaOS versions use Docker API 1.43, and when the system Docker gets auto-upgraded or the storage becomes corrupted, it breaks compatibility.
 
 ### Special Note for LXC/Proxmox Users
 
@@ -44,9 +44,9 @@ This script automatically detects LXC environments and installs **containerd.io 
 - Cleans Docker runtime state and fixes permissions
 - **Ensures all Docker processes are completely terminated** before upgrade
 - Fixes overlay2 directory permissions
-- Downgrades Docker to version 24.0.7 (compatible with both CasaOS and modern systems)
+- Installs Docker 28.0.x (one version behind latest for stability, API 1.47/1.48)
 - **Verifies the dockerd binary version** after installation
-- **Installs containerd.io 1.7.28-1** in LXC/Proxmox to avoid CVE-2025-52881 AppArmor issues
+- **Installs containerd.io 1.7.28-1** to avoid CVE-2025-52881 AppArmor issues in LXC/Proxmox
 - Configures Docker daemon with proper settings
 - Holds Docker packages to prevent automatic upgrades
 - Removes standalone docker-compose if present
@@ -93,8 +93,8 @@ bash run.sh
 ## What causes these errors?
 
 These errors occur when:
-- Docker gets auto-upgraded to version 25+ or 26+ (API 1.44+)
-- CasaOS still uses Docker API 1.43 in older versions
+- Docker gets auto-upgraded to version 27+, 28+, or 29+ (API 1.45+)
+- Older CasaOS versions still use Docker API 1.43
 - There's a version mismatch between CasaOS's Docker client and the system's Docker daemon
 - System updates automatically upgrade Docker without considering CasaOS compatibility
 - Docker overlay2 storage permissions become corrupted
@@ -116,14 +116,16 @@ You can verify the fix by running:
 docker version
 ```
 
-Both the client and server API versions should now be compatible. The script installs Docker 24.0.7 which:
-- Supports API version 1.43 (compatible with older CasaOS)
-- Is stable and well-tested
+Both the client and server API versions should now be compatible. The script installs Docker 28.0.x which:
+- Supports API version 1.47 or 1.48 (compatible with modern CasaOS and newer distros)
+- Provides modern features while maintaining stability
+- Is one version behind the latest (29.0.x) for reliability
 - Is held at this version to prevent auto-upgrades
+- Works with both older CasaOS (via API override) and newer versions
 
 ### If the API version didn't change
 
-If you ran the script but `docker version` still shows a newer API version (1.45, 1.46, etc.), the script will display diagnostic information. Common causes and fixes:
+If you ran the script but `docker version` still shows an unexpected API version, the script will display diagnostic information. Common causes and fixes:
 
 1. **Docker daemon didn't restart properly**
    ```bash
@@ -136,7 +138,7 @@ If you ran the script but `docker version` still shows a newer API version (1.45
 2. **Verify the dockerd binary was replaced**
    ```bash
    dockerd --version
-   # Should show: Docker version 24.0.7
+   # Should show: Docker version 28.0.x
    ```
 
 3. **Check for multiple Docker installations**
@@ -149,10 +151,10 @@ If you ran the script but `docker version` still shows a newer API version (1.45
 4. **Verify package versions**
    ```bash
    dpkg -l | grep docker-ce
-   # Should show version 5:24.0.7-1~...
+   # Should show version 5:28.0.x-1~...
    ```
 
-If the packages show the correct version (24.0.7) but `docker version` still shows a newer API:
+If the packages show the correct version (28.0.x) but `docker version` still shows a newer API:
 - The dockerd process may not have fully restarted
 - Try rebooting your system
 - Check for lingering processes: `ps aux | grep dockerd`
@@ -171,16 +173,23 @@ If you want to allow Docker upgrades in the future (after confirming CasaOS comp
 sudo apt-mark unhold docker-ce docker-ce-cli containerd.io
 ```
 
-⚠️ **Warning for LXC users**: Before unholdingcontainerd.io, check if the AppArmor issue has been fixed:
+⚠️ **Warning for LXC/Proxmox users**: Before unholding containerd.io, check if the AppArmor issue has been fixed:
 - Check: https://github.com/opencontainers/runc/issues/4968
 - Or test in a non-production environment first
+- The script installs containerd.io 1.7.28-1 for both the downgrade and override paths to ensure consistency
 
 ## Version Information
 
-- Docker CE: 24.0.7
-- Docker API: 1.43 compatible
-- containerd.io: 1.7.28-1 (for LXC/Proxmox environments)
-- Works with CasaOS 0.4.x series
+- **Script Version**: 1.6.1
+- **Docker CE**: 28.0.x (one version behind latest)
+- **Docker API**: 1.47 or 1.48 (Docker 28.0.x series)
+- **containerd.io**: 1.7.28-1 (prevents CVE-2025-52881 AppArmor issues)
+- **Works with**: 
+  - Modern CasaOS versions (0.4.x+)
+  - Older CasaOS versions (via Docker API override)
+  - Ubuntu 20.04, 22.04, 24.04
+  - Debian 11 (Bullseye), 12 (Bookworm), 13 (Trixie)
+  - LXC/Proxmox environments
 
 ## Alternative Solutions for LXC/Proxmox (Advanced)
 
