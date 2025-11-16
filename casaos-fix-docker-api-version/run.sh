@@ -371,7 +371,7 @@ verify_docker_api_version() {
     echo "Expected: 1.47 for CasaOS compatibility (Docker 28.0.x)"
     echo ""
     echo "Current version: $api_version"
-    if [[ "$api_version" > "1.47" ]]; then
+    if (( $(echo "$api_version > 1.47" | bc -l) )); then
       echo "You have a newer Docker version installed (API $api_version)"
       echo ""
       echo "This might indicate:"
@@ -926,18 +926,22 @@ clean_docker_state() {
   echo ""
 }
 
-# Function to resolve latest available Docker 28.0.x version
+# Function to resolve latest available Docker 28.x version
 resolve_docker_version() {
-  # Query available docker-ce versions and filter for 28.0.x
+  # Query available docker-ce versions and filter for 28.x.x (any patch in 28 series)
+  # Pattern matches: 5:28.X.X-1~ (Docker 28.x.x series - includes 28.0.x, 28.1.x, 28.5.x, etc.)
+  # Handles various distro suffixes: ~debian.13~trixie, ~ubuntu.22.04~jammy, etc.
+  # Sort versions to get the latest (highest version number)
   local available_version=$(apt-cache madison docker-ce 2>/dev/null | \
-    grep -E '5:28\.0\.[0-9]+-1~' | \
-    head -n1 | \
-    awk '{print $3}')
+    awk '{print $3}' | \
+    grep -E '^5:28\.[0-9]+\.[0-9]+-1~' | \
+    sort -V -r | \
+    head -n1)
   
   if [ -z "$available_version" ]; then
-    echo "ERROR: Could not find any Docker 28.0.x version in repository" >&2
+    echo "ERROR: Could not find any Docker 28.x version in repository" >&2
     echo "Available versions:" >&2
-    apt-cache madison docker-ce 2>/dev/null | head -n 5 >&2
+    apt-cache madison docker-ce 2>/dev/null | head -n 10 >&2
     return 1
   fi
   
