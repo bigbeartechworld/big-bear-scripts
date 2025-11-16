@@ -30,7 +30,7 @@ open sysctl net.ipv4.ip_unprivileged_port_start file: reopen fd 8: permission de
 This script automatically detects LXC environments and installs **containerd.io 1.7.28-1** (the last version before the breaking change) to prevent this issue.
 
 **References:**
-- GitHub Issue: https://github.com/opencontainers/runc/issues/4968
+- GitHub Issue: [opencontainers/runc#4968](https://github.com/opencontainers/runc/issues/4968)
 - Proxmox Forum: https://forum.proxmox.com/threads/docker-inside-lxc-net-ipv4-ip_unprivileged_port_start-error.175437/
 
 ## What does this script do?
@@ -158,7 +158,7 @@ sudo apt-mark unhold docker-ce docker-ce-cli containerd.io
 ```
 
 ⚠️ **Warning for LXC/Proxmox users**: Before unholding containerd.io, check if the AppArmor issue has been fixed:
-- Check: https://github.com/opencontainers/runc/issues/4968
+- Check: [opencontainers/runc#4968](https://github.com/opencontainers/runc/issues/4968)
 - Or test in a non-production environment first
 - The script installs containerd.io 1.7.28-1 for both the downgrade and override paths to ensure consistency
 
