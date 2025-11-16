@@ -361,14 +361,16 @@ verify_docker_api_version() {
   echo "Current Docker API version: $api_version"
   echo ""
   
-  # Check if it's 1.47 or 1.48 (Docker 28.x series)
-  if [[ "$api_version" == "1.47" ]] || [[ "$api_version" == "1.48" ]]; then
+  # Check if API version is below 1.52 (Docker 29.x breaking change)
+  # Docker 28.x series uses API 1.47-1.51, all compatible with CasaOS
+  # Use awk for decimal comparison (doesn't require bc)
+  if awk -v ver="$api_version" 'BEGIN {exit !(ver >= 1.47 && ver < 1.52)}'; then
     echo "✓ Docker API version is compatible with CasaOS ($api_version)"
     echo ""
     return 0
   else
     echo "⚠ WARNING: Docker API version is $api_version"
-    echo "Expected: 1.47 or 1.48 for CasaOS compatibility (Docker 28.x)"
+    echo "Expected: 1.47-1.51 (Docker 28.x - before API 1.52 breaking change)"
     echo ""
     echo "Current version: $api_version"
     if (( $(echo "$api_version > 1.47" | bc -l) )); then
