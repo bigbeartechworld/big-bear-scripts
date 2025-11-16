@@ -34,10 +34,10 @@ echo "=========================================="
 echo ""
 
 # Compatible Docker versions for CasaOS
-# Using Docker 28.0.x series which supports API 1.47
-# Docker 28.0.x is one version behind the latest (29.0.x / API 1.52)
+# Using Docker 28.x series which supports API 1.47/1.48
+# Docker 28.x is one version behind the latest (29.0.x / API 1.52)
 # This provides modern features while maintaining stability
-# DOCKER_VERSION will be resolved at runtime to find latest available 28.0.x
+# DOCKER_VERSION will be resolved at runtime to find latest available 28.x.x
 # Using containerd.io 1.7.28-1 to avoid CVE-2025-52881 AppArmor issues in LXC/Proxmox
 # Version 1.7.28-2 and newer cause "permission denied" errors on sysctl in nested containers
 readonly CONTAINERD_VERSION="1.7.28-1"
@@ -82,18 +82,18 @@ detect_os() {
   echo ""
 }
 
-# Function to check if Docker 28.0.x is available for this OS version
+# Function to check if Docker 28.x is available for this OS version
 check_docker_availability() {
-  echo "Checking Docker 28.0.x availability for $OS $VERSION_CODENAME..."
+  echo "Checking Docker 28.x availability for $OS $VERSION_CODENAME..."
   
-  # List of OS versions known to NOT have Docker 28.0.x packages
+  # List of OS versions known to NOT have Docker 28.x packages
   # For these, we'll keep the latest available Docker with API override
   local unsupported_versions=(
-    # Note: All currently supported distros should have Docker 28.0.x available
+    # Note: All currently supported distros should have Docker 28.x available
     # This list is kept for future compatibility
   )
   
-  # Known supported versions (have Docker 28.0.x available):
+  # Known supported versions (have Docker 28.x available):
   # - Ubuntu 20.04 (focal)
   # - Ubuntu 22.04 (jammy)
   # - Ubuntu 24.04 (noble)
@@ -129,7 +129,7 @@ check_docker_availability() {
     fi
   done
   
-  echo "✓ Docker 28.0.x should be available for your OS version"
+  echo "✓ Docker 28.x should be available for your OS version"
   echo ""
   return 0
 }
@@ -300,9 +300,9 @@ verify_dockerd_binary_version() {
   local dockerd_version=$(dockerd --version 2>/dev/null | head -n1)
   echo "dockerd binary version: $dockerd_version"
   
-  # Check if it contains "28.0"
-  if echo "$dockerd_version" | grep -q "28.0"; then
-    echo "✓ dockerd binary is version 28.0.x"
+  # Check if it contains "28." (28.0, 28.1, 28.5, etc.)
+  if echo "$dockerd_version" | grep -qE "Docker version 28\."; then
+    echo "✓ dockerd binary is version 28.x"
     echo ""
     return 0
   else
@@ -361,14 +361,14 @@ verify_docker_api_version() {
   echo "Current Docker API version: $api_version"
   echo ""
   
-  # Check if it's 1.47 or compatible (Docker 28.0.x)
-  if [[ "$api_version" == "1.47" ]]; then
-    echo "✓ Docker API version is compatible with CasaOS (1.47)"
+  # Check if it's 1.47 or 1.48 (Docker 28.x series)
+  if [[ "$api_version" == "1.47" ]] || [[ "$api_version" == "1.48" ]]; then
+    echo "✓ Docker API version is compatible with CasaOS ($api_version)"
     echo ""
     return 0
   else
     echo "⚠ WARNING: Docker API version is $api_version"
-    echo "Expected: 1.47 for CasaOS compatibility (Docker 28.0.x)"
+    echo "Expected: 1.47 or 1.48 for CasaOS compatibility (Docker 28.x)"
     echo ""
     echo "Current version: $api_version"
     if (( $(echo "$api_version > 1.47" | bc -l) )); then
@@ -988,7 +988,7 @@ downgrade_docker() {
   fi
 
   # Resolve exact Docker version at runtime
-  echo "Resolving exact Docker 28.0.x version from repository..."
+  echo "Resolving latest Docker 28.x version from repository..."
   DOCKER_VERSION=$(resolve_docker_version)
   if [ $? -ne 0 ] || [ -z "$DOCKER_VERSION" ]; then
     echo "ERROR: Failed to resolve Docker version"
@@ -1020,8 +1020,8 @@ downgrade_docker() {
   fi
   echo ""
   
-  # Install latest Docker 28.0.x version compatible with CasaOS
-  echo "Installing Docker 28.0.x (API 1.47) - one version behind latest..."
+  # Install latest Docker 28.x version compatible with CasaOS
+  echo "Installing Docker 28.x (API 1.47/1.48) - one version behind latest..."
   
   # Check if we're in LXC and warn about containerd version
   if check_lxc_environment; then
@@ -1061,7 +1061,7 @@ downgrade_docker() {
       return 1
   fi
   
-  echo "✓ Successfully installed Docker 28.0.x (API 1.47)"
+  echo "✓ Successfully installed Docker 28.x (API 1.47/1.48)"
   echo ""
 
   # Hold packages to prevent auto-upgrade
@@ -1333,13 +1333,13 @@ show_usage() {
   echo "  help                - Show this help message"
   echo ""
   echo "Default behavior (no arguments):"
-  echo "  Installs Docker 28.0.x (API 1.47) - compatible with CasaOS"
+  echo "  Installs Docker 28.x (API 1.47/1.48) - compatible with CasaOS"
   echo "  Use on: Ubuntu 20.04, 22.04, 24.04, Debian 11, 12, 13"
   echo ""
   echo "Alternative fix (apply-override):"
   echo "  Sets DOCKER_MIN_API_VERSION=1.24 environment variable"
   echo "  Allows newer Docker versions (29.x) to work with CasaOS"
-  echo "  Use on: Distros where Docker 28.0.x is not available"
+  echo "  Use on: Distros where Docker 28.x is not available"
   echo ""
   echo "Examples:"
   echo "  $0                  # Run the downgrade fix (default)"
@@ -1390,11 +1390,11 @@ main() {
   check_sudo
   detect_os
   
-  echo "Step 1a: Verifying Docker 28.0.x availability..."
+  echo "Step 1a: Verifying Docker 28.x availability..."
   check_docker_availability
   local availability_result=$?
   
-  # If return code is 2, Docker 24.0.x is not available - use override method
+  # If return code is 2, Docker 28.x is not available - use override method
   if [ $availability_result -eq 2 ]; then
     echo "Proceeding with Docker API override method..."
     echo ""
