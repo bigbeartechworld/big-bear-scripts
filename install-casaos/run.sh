@@ -551,6 +551,68 @@ Check_Docker_Snap() {
     fi
 }
 
+# Check Docker API Compatibility with CasaOS
+Check_Docker_API_Compatibility() {
+    Show 2 "Checking Docker API compatibility with CasaOS..."
+    
+    # Get Docker API version
+    local api_version=""
+    if command -v docker &>/dev/null; then
+        api_version=$(${sudo_cmd} docker version --format '{{.Server.APIVersion}}' 2>/dev/null || echo "")
+        if [ -z "$api_version" ]; then
+            # Fallback method
+            api_version=$(${sudo_cmd} docker version 2>/dev/null | grep -A 5 "Server:" | grep "API version:" | awk '{print $3}' | head -n1 || echo "")
+        fi
+    fi
+    
+    if [ -z "$api_version" ]; then
+        Show 3 "Could not determine Docker API version. Skipping compatibility check."
+        return 0
+    fi
+    
+    Show 0 "Current Docker API version: ${api_version}"
+    
+    # Check if API version is >= 1.52 (Docker 29.x breaking change)
+    # Use awk for decimal comparison (doesn't require bc)
+    if awk -v ver="$api_version" 'BEGIN {exit !(ver >= 1.52)}'; then
+        Show 3 "Docker API ${api_version} detected (Docker 29.x+)"
+        echo -e "${aCOLOUR[4]}This Docker version may have compatibility issues with older CasaOS versions.${COLOUR_RESET}"
+        echo -e "${aCOLOUR[4]}Applying Docker API compatibility fix...${COLOUR_RESET}"
+        
+        # Apply Docker API override
+        local override_dir="/etc/systemd/system/docker.service.d"
+        local override_file="$override_dir/override.conf"
+        
+        # Create directory if it doesn't exist
+        ${sudo_cmd} mkdir -p "$override_dir"
+        
+        # Create override.conf
+        ${sudo_cmd} tee "$override_file" > /dev/null <<'EOF'
+[Service]
+Environment=DOCKER_MIN_API_VERSION=1.24
+EOF
+        
+        if [ -f "$override_file" ]; then
+            Show 0 "Docker API override applied successfully"
+            
+            # Reload systemd and restart Docker
+            ${sudo_cmd} systemctl daemon-reload
+            ${sudo_cmd} systemctl restart docker
+            sleep 3
+            
+            if ${sudo_cmd} systemctl is-active --quiet docker; then
+                Show 0 "Docker restarted successfully with compatibility fix"
+            else
+                Show 1 "Docker restart failed. Please check Docker service status."
+            fi
+        else
+            Show 1 "Failed to create Docker API override file"
+        fi
+    else
+        Show 0 "Docker API version is compatible with CasaOS"
+    fi
+}
+
 #Install Docker
 Install_Docker() {
     Show 2 "Install the necessary dependencies: \e[33mDocker \e[0m"
@@ -1005,6 +1067,8 @@ Check_Dependency_Installation
 # Step 6: Check And Install Docker
 Check_Docker_Install
 
+# Step 6.5: Check Docker API Compatibility
+Check_Docker_API_Compatibility
 
 # Step 7: Configuration Addon
 Configuration_Addons
