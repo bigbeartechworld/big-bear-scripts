@@ -32,7 +32,7 @@ NC='\033[0m' # No Color
 
 # Display Welcome
 echo -e "${BLUE}========================================${NC}"
-echo -e "${GREEN}BigBear CasaOS Installer V0.4${NC}"
+echo -e "${GREEN}BigBear CasaOS Installer V1.0.0${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo "Here are some links:"
 echo "https://community.bigbeartechworld.com"
@@ -115,6 +115,7 @@ source /etc/os-release
 readonly MINIMUM_DISK_SIZE_GB="5"
 readonly MINIMUM_MEMORY="400"
 readonly MINIMUM_DOCKER_VERSION="20"
+readonly CONTAINERD_VERSION="1.7.28-1"
 readonly CASA_DEPANDS_PACKAGE=('wget' 'curl' 'smartmontools' 'parted' 'ntfs-3g' 'net-tools' 'udevil' 'samba' 'cifs-utils' 'mergerfs' 'unzip')
 readonly CASA_DEPANDS_COMMAND=('wget' 'curl' 'smartctl' 'parted' 'ntfs-3g' 'netstat' 'udevil' 'smbd' 'mount.cifs' 'mount.mergerfs' 'unzip')
 
@@ -548,6 +549,169 @@ Check_Docker_Snap() {
         esac
     else
         Show 2 "Docker is not installed via Snap, or Snap is not installed."
+    fi
+}
+
+# Detect if running in LXC/Proxmox container
+Check_LXC_Environment() {
+    if [ -f /proc/1/environ ]; then
+        if grep -qa container=lxc /proc/1/environ; then
+            return 0
+        fi
+    fi
+    
+    # Alternative check: systemd-detect-virt
+    if command -v systemd-detect-virt &>/dev/null; then
+        if systemd-detect-virt | grep -q lxc; then
+            return 0
+        fi
+    fi
+    
+    return 1
+}
+
+# Check and fix containerd version for LXC/Proxmox
+Check_Containerd_LXC_Fix() {
+    Show 2 "Checking for LXC/Proxmox environment..."
+    
+    if Check_LXC_Environment; then
+        Show 3 "LXC/Proxmox environment detected"
+        echo -e "${aCOLOUR[4]}Checking containerd.io version for CVE-2025-52881 compatibility...${COLOUR_RESET}"
+        
+        # Get current containerd version
+        if command -v containerd &>/dev/null; then
+            local current_version=$(dpkg -l | grep containerd.io | awk '{print $3}' | head -n1)
+            
+            if [ -n "$current_version" ]; then
+                Show 0 "Current containerd.io version: ${current_version}"
+                
+                # Check if version is 1.7.28-2 or newer (problematic versions)
+                if dpkg --compare-versions "$current_version" ge "1.7.28-2"; then
+                    Show 3 "containerd.io ${current_version} may cause AppArmor issues in LXC"
+                    echo -e "${aCOLOUR[4]}Downgrading to containerd.io 1.7.28-1 for LXC compatibility...${COLOUR_RESET}"
+                    
+                    # Detect OS for package name
+                    local containerd_full="${CONTAINERD_VERSION}~${DIST}~${VERSION_CODENAME}"
+                    
+                    # Check if exact version exists
+                    if ! apt-cache madison containerd.io 2>/dev/null | grep -q "${containerd_full}"; then
+                        Show 2 "Searching for containerd.io 1.7.28-1 variant..."
+                        containerd_full=$(apt-cache madison containerd.io 2>/dev/null | \
+                            grep -E '1\.7\.28-1~' | \
+                            head -n1 | \
+                            awk '{print $3}')
+                        
+                        if [ -z "$containerd_full" ]; then
+                            Show 3 "Could not find containerd.io 1.7.28-1 in repository"
+                            echo -e "${aCOLOUR[4]}WARNING: Containers may fail with 'permission denied' errors${COLOUR_RESET}"
+                            echo -e "${aCOLOUR[4]}See: https://github.com/opencontainers/runc/issues/4968${COLOUR_RESET}"
+                            return 0
+                        fi
+                    fi
+                    
+                    Show 0 "Found containerd version: $containerd_full"
+                    
+                    # Stop Docker services
+                    ${sudo_cmd} systemctl stop docker 2>/dev/null || true
+                    ${sudo_cmd} systemctl stop containerd 2>/dev/null || true
+                    sleep 2
+                    
+                    # Downgrade containerd
+                    GreyStart
+                    if ${sudo_cmd} apt-get install -y --allow-downgrades containerd.io=${containerd_full}; then
+                        ColorReset
+                        Show 0 "Successfully installed containerd.io ${CONTAINERD_VERSION}"
+                        
+                        # Hold the package
+                        ${sudo_cmd} apt-mark hold containerd.io
+                        Show 0 "containerd.io held at version ${CONTAINERD_VERSION}"
+                        
+                        # Restart services
+                        ${sudo_cmd} systemctl start containerd 2>/dev/null || true
+                        sleep 2
+                        ${sudo_cmd} systemctl start docker 2>/dev/null || true
+                        sleep 3
+                        
+                        if ${sudo_cmd} systemctl is-active --quiet docker; then
+                            Show 0 "Docker restarted successfully with fixed containerd"
+                        else
+                            Show 3 "Docker service may need manual restart"
+                        fi
+                    else
+                        ColorReset
+                        Show 1 "Failed to downgrade containerd.io"
+                    fi
+                else
+                    Show 0 "containerd.io version is compatible with LXC (${current_version})"
+                fi
+            fi
+        else
+            Show 2 "containerd not yet installed, will be installed with Docker"
+        fi
+    else
+        Show 0 "Not running in LXC/Proxmox, skipping containerd check"
+    fi
+}
+
+# Check Docker API Compatibility with CasaOS
+Check_Docker_API_Compatibility() {
+    Show 2 "Checking Docker API compatibility with CasaOS..."
+    
+    # Get Docker API version
+    local api_version=""
+    if command -v docker &>/dev/null; then
+        api_version=$(${sudo_cmd} docker version --format '{{.Server.APIVersion}}' 2>/dev/null || echo "")
+        if [ -z "$api_version" ]; then
+            # Fallback method
+            api_version=$(${sudo_cmd} docker version 2>/dev/null | grep -A 5 "Server:" | grep "API version:" | awk '{print $3}' | head -n1 || echo "")
+        fi
+    fi
+    
+    if [ -z "$api_version" ]; then
+        Show 3 "Could not determine Docker API version. Skipping compatibility check."
+        return 0
+    fi
+    
+    Show 0 "Current Docker API version: ${api_version}"
+    
+    # Check if API version is >= 1.52 (Docker 29.x breaking change)
+    # Use awk for decimal comparison (doesn't require bc)
+    if awk -v ver="$api_version" 'BEGIN {exit !(ver >= 1.52)}'; then
+        Show 3 "Docker API ${api_version} detected (Docker 29.x+)"
+        echo -e "${aCOLOUR[4]}This Docker version may have compatibility issues with older CasaOS versions.${COLOUR_RESET}"
+        echo -e "${aCOLOUR[4]}Applying Docker API compatibility fix...${COLOUR_RESET}"
+        
+        # Apply Docker API override
+        local override_dir="/etc/systemd/system/docker.service.d"
+        local override_file="$override_dir/override.conf"
+        
+        # Create directory if it doesn't exist
+        ${sudo_cmd} mkdir -p "$override_dir"
+        
+        # Create override.conf
+        ${sudo_cmd} tee "$override_file" > /dev/null <<'EOF'
+[Service]
+Environment=DOCKER_MIN_API_VERSION=1.24
+EOF
+        
+        if [ -f "$override_file" ]; then
+            Show 0 "Docker API override applied successfully"
+            
+            # Reload systemd and restart Docker
+            ${sudo_cmd} systemctl daemon-reload
+            ${sudo_cmd} systemctl restart docker
+            sleep 3
+            
+            if ${sudo_cmd} systemctl is-active --quiet docker; then
+                Show 0 "Docker restarted successfully with compatibility fix"
+            else
+                Show 1 "Docker restart failed. Please check Docker service status."
+            fi
+        else
+            Show 1 "Failed to create Docker API override file"
+        fi
+    else
+        Show 0 "Docker API version is compatible with CasaOS"
     fi
 }
 
@@ -1005,6 +1169,11 @@ Check_Dependency_Installation
 # Step 6: Check And Install Docker
 Check_Docker_Install
 
+# Step 6.5: Check Docker API Compatibility
+Check_Docker_API_Compatibility
+
+# Step 6.6: Check and fix containerd for LXC/Proxmox
+Check_Containerd_LXC_Fix
 
 # Step 7: Configuration Addon
 Configuration_Addons
