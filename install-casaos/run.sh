@@ -32,7 +32,7 @@ NC='\033[0m' # No Color
 
 # Display Welcome
 echo -e "${BLUE}========================================${NC}"
-echo -e "${GREEN}BigBear CasaOS Installer V0.4${NC}"
+echo -e "${GREEN}BigBear CasaOS Installer V1.0.0${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo "Here are some links:"
 echo "https://community.bigbeartechworld.com"
