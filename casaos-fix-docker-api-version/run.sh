@@ -800,7 +800,8 @@ setup_docker_repository() {
   
   # Use timeout to prevent hanging on slow/broken mirrors
   echo "Updating package lists (timeout: 300s)..."
-  if ! timeout 300 $SUDO apt-get update 2>&1 | grep -v "^Get:\|^Hit:\|^Ign:" || [ ${PIPESTATUS[0]} -eq 124 ]; then
+  timeout 300 $SUDO apt-get update 2>&1 | grep -v "^Get:\|^Hit:\|^Ign:"
+  if [ ${PIPESTATUS[0]} -ne 0 ]; then
     echo "WARNING: apt-get update timed out or had issues"
     echo "Trying one more time..."
     if ! timeout 300 $SUDO apt-get update; then
@@ -871,7 +872,8 @@ setup_docker_repository() {
 
   # Update package index with new repository (force refresh)
   echo "Updating package lists with Docker repository (timeout: 300s)..."
-  if ! timeout 300 $SUDO apt-get update 2>&1 | grep -v "^Get:\|^Hit:\|^Ign:" || [ ${PIPESTATUS[0]} -eq 124 ]; then
+  timeout 300 $SUDO apt-get update 2>&1 | grep -v "^Get:\|^Hit:\|^Ign:"
+  if [ ${PIPESTATUS[0]} -ne 0 ]; then
     echo "ERROR: Failed to update package lists with Docker repository"
     echo "This operation timed out or failed. Common causes:"
     echo "  - Slow network connection"
