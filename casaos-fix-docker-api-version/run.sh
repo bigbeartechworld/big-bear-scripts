@@ -146,7 +146,8 @@ check_and_remove_snap_docker() {
   fi
   
   # Check if Docker is installed via snap
-  if snap list docker &>/dev/null; then
+  # Use timeout to prevent hanging if snapd is unresponsive
+  if timeout 30 snap list docker >/dev/null 2>&1; then
     echo ""
     echo "=========================================="
     echo "WARNING: Docker installed via Snap detected!"
@@ -166,12 +167,12 @@ check_and_remove_snap_docker() {
     fi
     
     echo "Removing Docker Snap package..."
-    if $SUDO snap remove --purge docker; then
+    if $SUDO timeout 300 snap remove --purge docker; then
       # Wait a moment for snap to fully clean up
       sleep 2
       
       # Verify removal succeeded
-      if snap list docker &>/dev/null; then
+      if timeout 30 snap list docker >/dev/null 2>&1; then
         echo "⚠ WARNING: Snap Docker still appears to be installed after removal attempt"
         echo ""
         return 1
@@ -181,11 +182,20 @@ check_and_remove_snap_docker() {
       echo ""
       return 0
     else
-      echo "⚠ WARNING: Failed to remove Snap Docker"
+      echo "⚠ WARNING: Failed to remove Snap Docker (or timed out)"
       echo ""
       return 1
     fi
   else
+    # Check if it was a timeout or just not found
+    local exit_code=$?
+    if [ $exit_code -eq 124 ]; then
+      echo "WARNING: 'snap list' timed out. Snap daemon might be unresponsive."
+      echo "Skipping Snap Docker check to prevent hanging."
+      echo ""
+      return 0
+    fi
+
     echo "No Docker Snap package found"
     echo ""
     return 0
