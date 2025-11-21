@@ -20,7 +20,7 @@ else
 fi
 
 echo "=========================================="
-echo "BigBear CasaOS Docker Version Fix Script 1.6.1"
+echo "BigBear CasaOS Docker Version Fix Script 1.6.3"
 echo "=========================================="
 echo ""
 echo "Here are some links:"
@@ -798,11 +798,27 @@ setup_docker_repository() {
   $SUDO apt-get clean
   $SUDO rm -rf /var/lib/apt/lists/*
   
-  $SUDO apt-get update
+  # Use timeout to prevent hanging on slow/broken mirrors
+  echo "Updating package lists (timeout: 300s)..."
+  if ! timeout 300 $SUDO apt-get update 2>&1 | grep -v "^Get:\|^Hit:\|^Ign:" || [ ${PIPESTATUS[0]} -eq 124 ]; then
+    echo "WARNING: apt-get update timed out or had issues"
+    echo "Trying one more time..."
+    if ! timeout 300 $SUDO apt-get update; then
+      echo "ERROR: Failed to update package lists after retry"
+      echo "This could be due to:"
+      echo "  - Slow or broken repository mirrors"
+      echo "  - Network connectivity issues"
+      echo "  - Repository configuration problems"
+      echo ""
+      echo "You may want to try the override.conf method instead:"
+      echo "  https://community.bigbeartechworld.com"
+      return 1
+    fi
+  fi
   echo ""
 
   echo "Installing prerequisites..."
-  if ! $SUDO apt-get install -y \
+  if ! timeout 180 $SUDO apt-get install -y \
     apt-transport-https \
     ca-certificates \
     curl \
@@ -816,11 +832,33 @@ setup_docker_repository() {
   # Add Docker's official GPG key
   echo "Adding Docker's official GPG key..."
   $SUDO install -m 0755 -d /etc/apt/keyrings
-  if ! $SUDO curl -fsSL https://download.docker.com/linux/${OS}/gpg -o /etc/apt/keyrings/docker.asc; then
-    echo "ERROR: Failed to download Docker GPG key"
-    return 1
+  
+  local download_success=false
+  local max_retries=3
+  local retry_count=0
+  
+  while [ $retry_count -lt $max_retries ]; do
+    if timeout 60 $SUDO curl -fsSL --connect-timeout 30 --max-time 60 "https://download.docker.com/linux/${OS}/gpg" -o /etc/apt/keyrings/docker.asc; then
+      download_success=true
+      break
+    fi
+    
+    echo "Download failed, retrying in 5 seconds... ($((retry_count + 1))/$max_retries)"
+    sleep 5
+    retry_count=$((retry_count + 1))
+  done
+  
+  if [ "$download_success" = false ]; then
+    echo "Standard download failed. Trying with HTTP/1.1..."
+    if ! timeout 60 $SUDO curl -fsSL --http1.1 --connect-timeout 30 --max-time 60 "https://download.docker.com/linux/${OS}/gpg" -o /etc/apt/keyrings/docker.asc; then
+      echo "ERROR: Failed to download Docker GPG key (timeout or connection error)"
+      echo "Please check your internet connection and try again."
+      return 1
+    fi
   fi
+
   $SUDO chmod a+r /etc/apt/keyrings/docker.asc
+  echo "✓ GPG key installed successfully"
   echo ""
 
   # Set up the stable repository
@@ -832,11 +870,18 @@ setup_docker_repository() {
   echo ""
 
   # Update package index with new repository (force refresh)
-  echo "Updating package lists with Docker repository..."
-  if ! $SUDO apt-get update; then
-    echo "ERROR: Failed to update package lists"
+  echo "Updating package lists with Docker repository (timeout: 300s)..."
+  if ! timeout 300 $SUDO apt-get update 2>&1 | grep -v "^Get:\|^Hit:\|^Ign:" || [ ${PIPESTATUS[0]} -eq 124 ]; then
+    echo "ERROR: Failed to update package lists with Docker repository"
+    echo "This operation timed out or failed. Common causes:"
+    echo "  - Slow network connection"
+    echo "  - Docker repository temporarily unavailable"
+    echo "  - Firewall blocking Docker repository access"
+    echo ""
+    echo "Alternative: Use the override.conf method to keep your current Docker version"
     return 1
   fi
+  echo "✓ Package lists updated successfully"
   echo ""
   
   return 0
@@ -1045,21 +1090,38 @@ downgrade_docker() {
   echo "Installing docker-ce-cli=${DOCKER_VERSION}"
   echo "Installing containerd.io=${CONTAINERD_FULL}"
   echo ""
+  echo "Note: This may take several minutes depending on your network speed..."
+  echo "Please be patient, the script is still running."
+  echo ""
   
-  if ! $SUDO apt-get install -y --allow-downgrades \
+  # Use timeout (10 minutes max for download/install)
+  if ! timeout 600 $SUDO apt-get install -y --allow-downgrades \
     docker-ce=${DOCKER_VERSION} \
     docker-ce-cli=${DOCKER_VERSION} \
     containerd.io=${CONTAINERD_FULL} \
     docker-buildx-plugin \
-    docker-compose-plugin; then
-      echo ""
-      echo "ERROR: Docker installation failed!"
-      echo "Please check your internet connection and try again."
-      echo ""
-      echo "Attempted to install:"
-      echo "  docker-ce=${DOCKER_VERSION}"
-      echo "  docker-ce-cli=${DOCKER_VERSION}"
-      echo "  containerd.io=${CONTAINERD_FULL}"
+    docker-compose-plugin 2>&1 | tee /tmp/docker-install.log; then
+      if [ ${PIPESTATUS[0]} -eq 124 ]; then
+        echo ""
+        echo "ERROR: Docker installation timed out after 10 minutes!"
+        echo "This usually means:"
+        echo "  - Very slow network connection"
+        echo "  - Repository mirror is overloaded or broken"
+        echo "  - Package download is stuck"
+        echo ""
+        echo "Suggestion: Try the override.conf method instead to keep your current Docker"
+      else
+        echo ""
+        echo "ERROR: Docker installation failed!"
+        echo "Please check your internet connection and try again."
+        echo ""
+        echo "Attempted to install:"
+        echo "  docker-ce=${DOCKER_VERSION}"
+        echo "  docker-ce-cli=${DOCKER_VERSION}"
+        echo "  containerd.io=${CONTAINERD_FULL}"
+        echo ""
+        echo "Installation log saved to: /tmp/docker-install.log"
+      fi
       return 1
   fi
   
@@ -1357,7 +1419,7 @@ main() {
     case "$1" in
       apply-override|override)
         echo "=========================================="
-        echo "BigBear CasaOS Docker Version Fix Script 1.6.1"
+        echo "BigBear CasaOS Docker Version Fix Script 1.6.3"
         echo "=========================================="
         echo ""
         apply_docker_api_override
@@ -1365,7 +1427,7 @@ main() {
         ;;
       remove-override|no-override)
         echo "=========================================="
-        echo "BigBear CasaOS Docker Version Fix Script 1.6.1"
+        echo "BigBear CasaOS Docker Version Fix Script 1.6.3"
         echo "=========================================="
         echo ""
         remove_docker_api_override
@@ -1373,7 +1435,7 @@ main() {
         ;;
       help|--help|-h)
         echo "=========================================="
-        echo "BigBear CasaOS Docker Version Fix Script 1.6.1"
+        echo "BigBear CasaOS Docker Version Fix Script 1.6.3"
         echo "=========================================="
         echo ""
         show_usage
@@ -1392,7 +1454,33 @@ main() {
   check_sudo
   detect_os
   
-  echo "Step 1a: Verifying Docker 28.x availability..."
+  # Quick network connectivity check
+  echo "Step 1a: Checking network connectivity..."
+  if ! timeout 10 curl -fsSL --connect-timeout 5 https://download.docker.com/ > /dev/null 2>&1; then
+    echo "⚠ WARNING: Cannot reach Docker repository (download.docker.com)"
+    echo ""
+    echo "This could indicate:"
+    echo "  - No internet connection"
+    echo "  - Firewall blocking access"
+    echo "  - DNS resolution issues"
+    echo ""
+    echo "The script may hang or fail during package downloads."
+    echo ""
+    read -p "Do you want to continue anyway? (yes/no): " -r REPLY
+    echo ""
+    if [[ ! $REPLY =~ ^[Yy][Ee][Ss]$|^[Yy]$ ]]; then
+      echo "Script cancelled."
+      echo ""
+      echo "Alternative: If you already have Docker installed, use the override method:"
+      echo "  bash run.sh apply-override"
+      exit 0
+    fi
+  else
+    echo "✓ Network connectivity OK"
+  fi
+  echo ""
+  
+  echo "Step 1b: Verifying Docker 28.x availability..."
   check_docker_availability
   local availability_result=$?
   
@@ -1678,7 +1766,7 @@ main() {
     fi
   fi
   
-  echo "Step 1b: Checking for Snap Docker installation..."
+  echo "Step 1c: Checking for Snap Docker installation..."
   if ! check_and_remove_snap_docker; then
     echo "=========================================="
     echo "ERROR: Failed to remove Snap Docker"
@@ -1691,7 +1779,7 @@ main() {
     exit 1
   fi
   
-  echo "Step 1c: Checking for multiple Docker binaries..."
+  echo "Step 1d: Checking for multiple Docker binaries..."
   check_docker_binary_locations
   
   echo "Step 2: Checking for CasaOS..."
