@@ -101,6 +101,8 @@ check_docker_availability() {
   # - Debian 11 (bullseye)
   # - Debian 12 (bookworm)
   # - Debian 13 (trixie)
+  # - Raspbian 11 (bullseye)
+  # - Raspbian 12 (bookworm)
   
   local current_os="${OS}:${VERSION_CODENAME}"
   
