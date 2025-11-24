@@ -20,7 +20,7 @@ else
 fi
 
 echo "=========================================="
-echo "BigBear CasaOS Docker Version Fix Script 1.6.2"
+echo "BigBear CasaOS Docker Version Fix Script 1.6.3"
 echo "=========================================="
 echo ""
 echo "Here are some links:"
@@ -46,7 +46,7 @@ readonly CONTAINERD_VERSION="1.7.28-1"
 display_versions() {
   echo "Current Docker versions:"
   if command -v docker &>/dev/null; then
-    $SUDO docker version 2>&1 || echo "Unable to get full version info due to API mismatch"
+    timeout 10 $SUDO docker version 2>&1 || echo "Unable to get full version info due to API mismatch or timeout"
     echo ""
     
     # Also show installed package versions for clarity
@@ -101,6 +101,8 @@ check_docker_availability() {
   # - Debian 11 (bullseye)
   # - Debian 12 (bookworm)
   # - Debian 13 (trixie)
+  # - Raspbian 11 (bullseye)
+  # - Raspbian 12 (bookworm)
   
   local current_os="${OS}:${VERSION_CODENAME}"
   
@@ -286,11 +288,24 @@ get_docker_api_version() {
   # Try to get the API version from docker version command
   if command -v docker &>/dev/null; then
     # Get server API version
-    api_version=$($SUDO docker version --format '{{.Server.APIVersion}}' 2>/dev/null || echo "")
+    # Use timeout to prevent hanging if Docker daemon is unresponsive
+    local output
+    output=$(timeout 10 $SUDO docker version --format '{{.Server.APIVersion}}' 2>/dev/null)
+    local exit_code=$?
     
-    if [ -z "$api_version" ]; then
+    if [ $exit_code -eq 0 ]; then
+      api_version="$output"
+    elif [ $exit_code -eq 124 ]; then
+      # Timed out - do not try fallback as it will likely hang too
+      api_version=""
+    else
+      # Other error (e.g. format not supported), try fallback
+      api_version=""
+    fi
+    
+    if [ -z "$api_version" ] && [ $exit_code -ne 124 ]; then
       # Fallback: try to parse from docker version output
-      api_version=$($SUDO docker version 2>/dev/null | grep -A 5 "Server:" | grep "API version:" | awk '{print $3}' | head -n1 || echo "")
+      api_version=$(timeout 10 $SUDO docker version 2>/dev/null | grep -A 5 "Server:" | grep "API version:" | awk '{print $3}' | head -n1 || echo "")
     fi
   fi
   
@@ -307,7 +322,7 @@ verify_dockerd_binary_version() {
     return 1
   fi
   
-  local dockerd_version=$(dockerd --version 2>/dev/null | head -n1)
+  local dockerd_version=$(timeout 10 dockerd --version 2>/dev/null | head -n1)
   echo "dockerd binary version: $dockerd_version"
   
   # Check if it contains "28." (28.0, 28.1, 28.5, etc.)
@@ -541,7 +556,7 @@ EOF
   
   # Restart Docker
   echo "Restarting Docker service..."
-  $SUDO systemctl restart docker
+  timeout 30 $SUDO systemctl restart docker
   sleep 3
   echo ""
   
@@ -552,7 +567,7 @@ EOF
     # Show current Docker info
     local docker_version=$(get_docker_api_version)
     if command -v docker &>/dev/null; then
-      local docker_ver=$($SUDO docker version --format '{{.Server.Version}}' 2>/dev/null || echo "unknown")
+      local docker_ver=$(timeout 10 $SUDO docker version --format '{{.Server.Version}}' 2>/dev/null || echo "unknown")
       echo ""
       echo "Current configuration:"
       echo "  Docker version: $docker_ver"
@@ -597,7 +612,7 @@ remove_docker_api_override() {
   
   # Restart Docker
   echo "Restarting Docker service..."
-  $SUDO systemctl restart docker
+  timeout 30 $SUDO systemctl restart docker
   sleep 3
   echo ""
   
@@ -642,7 +657,7 @@ detect_and_fix_docker_errors() {
   echo "Analyzing Docker error logs..."
   
   # Get recent Docker logs
-  local docker_logs=$($SUDO journalctl -u docker --no-pager -n 100 2>/dev/null)
+  local docker_logs=$(timeout 10 $SUDO journalctl -u docker --no-pager -n 100 2>/dev/null)
   
   # Check for specific errors and apply fixes
   
@@ -739,8 +754,8 @@ EOL
       echo "Fix: Cleaning runtime state..."
       
       # Clean containerd
-      $SUDO systemctl stop docker 2>/dev/null || true
-      $SUDO systemctl stop containerd 2>/dev/null || true
+      timeout 30 $SUDO systemctl stop docker 2>/dev/null || true
+      timeout 30 $SUDO systemctl stop containerd 2>/dev/null || true
       
       if [ -d /run/containerd ]; then
         $SUDO rm -rf /run/containerd/* 2>/dev/null || true
@@ -758,8 +773,8 @@ EOL
     echo "Detected: Port conflict"
     echo "Fix: Cleaning stale Docker sockets..."
     
-    $SUDO systemctl stop docker 2>/dev/null || true
-    $SUDO systemctl stop docker.socket 2>/dev/null || true
+    timeout 30 $SUDO systemctl stop docker 2>/dev/null || true
+    timeout 30 $SUDO systemctl stop docker.socket 2>/dev/null || true
     
     # Remove stale sockets
     $SUDO rm -f /var/run/docker.sock
@@ -923,7 +938,7 @@ clean_docker_state() {
   # Stop Docker first
   if $SUDO systemctl is-active --quiet docker; then
     echo "Stopping Docker service..."
-    $SUDO systemctl stop docker
+    timeout 30 $SUDO systemctl stop docker || true
     sleep 2
     echo ""
   fi
@@ -931,7 +946,7 @@ clean_docker_state() {
   # Stop docker socket to prevent auto-restart
   if $SUDO systemctl is-active --quiet docker.socket; then
     echo "Stopping Docker socket..."
-    $SUDO systemctl stop docker.socket
+    timeout 30 $SUDO systemctl stop docker.socket || true
     sleep 1
     echo ""
   fi
@@ -1033,9 +1048,9 @@ downgrade_docker() {
     
     # Stop Docker services before removal
     echo "Stopping Docker services before package removal..."
-    $SUDO systemctl stop docker.socket 2>/dev/null || true
-    $SUDO systemctl stop docker 2>/dev/null || true
-    $SUDO systemctl stop containerd 2>/dev/null || true
+    timeout 30 $SUDO systemctl stop docker.socket 2>/dev/null || true
+    timeout 30 $SUDO systemctl stop docker 2>/dev/null || true
+    timeout 30 $SUDO systemctl stop containerd 2>/dev/null || true
     sleep 2
     
     $SUDO apt-get remove --purge -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin 2>/dev/null || true
@@ -1107,12 +1122,16 @@ downgrade_docker() {
   echo ""
   
   # Use timeout (10 minutes max for download/install)
+  # Prevent services from starting during install to avoid hangs
+  prevent_service_autostart
+  
   if ! timeout 600 $SUDO apt-get install -y --allow-downgrades \
     docker-ce=${DOCKER_VERSION} \
     docker-ce-cli=${DOCKER_VERSION} \
     containerd.io=${CONTAINERD_FULL} \
     docker-buildx-plugin \
     docker-compose-plugin 2>&1 | tee /tmp/docker-install.log; then
+      allow_service_autostart
       if [ ${PIPESTATUS[0]} -eq 124 ]; then
         echo ""
         echo "ERROR: Docker installation timed out after 10 minutes!"
@@ -1136,6 +1155,8 @@ downgrade_docker() {
       fi
       return 1
   fi
+  
+  allow_service_autostart
   
   echo "✓ Successfully installed Docker 28.x (API 1.47/1.48)"
   echo ""
@@ -1170,8 +1191,8 @@ downgrade_docker() {
 
   # Ensure Docker is completely stopped before starting
   echo "Step 7.2: Ensuring Docker is completely stopped..."
-  $SUDO systemctl stop docker.socket 2>/dev/null || true
-  $SUDO systemctl stop docker 2>/dev/null || true
+  timeout 30 $SUDO systemctl stop docker.socket 2>/dev/null || true
+  timeout 30 $SUDO systemctl stop docker 2>/dev/null || true
   sleep 2
   
   # Use the new function to ensure processes are stopped
@@ -1179,7 +1200,7 @@ downgrade_docker() {
   
   # Stop containerd to ensure clean slate
   echo "Restarting containerd for clean state..."
-  $SUDO systemctl stop containerd 2>/dev/null || true
+  timeout 30 $SUDO systemctl stop containerd 2>/dev/null || true
   sleep 1
   if pgrep -x containerd >/dev/null 2>&1; then
     $SUDO pkill -9 containerd 2>/dev/null || true
@@ -1209,10 +1230,10 @@ downgrade_docker() {
     echo "=========================================="
     echo ""
     echo "Checking Docker status and logs..."
-    $SUDO systemctl status docker --no-pager -l || true
+    timeout 10 $SUDO systemctl status docker --no-pager -l || true
     echo ""
     echo "Recent Docker logs:"
-    $SUDO journalctl -u docker --no-pager -n 50 || true
+    timeout 10 $SUDO journalctl -u docker --no-pager -n 50 || true
     echo ""
     
     # Attempt to detect and fix the error
@@ -1226,8 +1247,8 @@ downgrade_docker() {
       echo ""
       echo "Reloading systemd and restarting Docker..."
       $SUDO systemctl daemon-reload
-      $SUDO systemctl stop docker.socket 2>/dev/null || true
-      $SUDO systemctl stop docker 2>/dev/null || true
+      timeout 30 $SUDO systemctl stop docker.socket 2>/dev/null || true
+      timeout 30 $SUDO systemctl stop docker 2>/dev/null || true
       sleep 2
       $SUDO systemctl start docker.socket
       sleep 1
@@ -1242,7 +1263,7 @@ downgrade_docker() {
         echo ""
         echo "Checking for daemon.json syntax errors..."
         if command -v dockerd &>/dev/null; then
-          $SUDO dockerd --validate 2>&1 || true
+          timeout 10 $SUDO dockerd --validate 2>&1 || true
         fi
         echo ""
         echo "Please check the error messages above."
@@ -1269,7 +1290,7 @@ downgrade_docker() {
     
     # Test Docker functionality
     echo "Testing Docker functionality..."
-    if $SUDO docker info >/dev/null 2>&1; then
+    if timeout 10 $SUDO docker info >/dev/null 2>&1; then
       echo "Docker is responding correctly!"
       echo ""
       
@@ -1332,9 +1353,9 @@ downgrade_docker() {
             echo "Performing Docker reset..."
             
             # Stop all Docker services
-            $SUDO systemctl stop docker.socket 2>/dev/null || true
-            $SUDO systemctl stop docker 2>/dev/null || true
-            $SUDO systemctl stop containerd 2>/dev/null || true
+            timeout 30 $SUDO systemctl stop docker.socket 2>/dev/null || true
+            timeout 30 $SUDO systemctl stop docker 2>/dev/null || true
+            timeout 30 $SUDO systemctl stop containerd 2>/dev/null || true
             sleep 2
             
             # Backup important data
@@ -1359,7 +1380,7 @@ downgrade_docker() {
             
             # Test again
             echo "Testing Docker after reset..."
-            if $SUDO docker run --rm hello-world >/dev/null 2>&1; then
+            if timeout 60 $SUDO docker run --rm hello-world >/dev/null 2>&1; then
               echo ""
               echo "✓ Docker reset successful!"
               echo "✓ Containers can now run properly"
@@ -1392,7 +1413,7 @@ downgrade_docker() {
       fi
     else
       echo "Warning: Docker started but may not be fully functional"
-      $SUDO docker info || true
+      timeout 10 $SUDO docker info || true
     fi
   fi
   echo ""
@@ -1424,6 +1445,80 @@ show_usage() {
   echo ""
 }
 
+# Function to prevent services from auto-starting during install
+prevent_service_autostart() {
+  # Check if we can write to /usr/sbin
+  if [ ! -w /usr/sbin ]; then
+    if [ -z "$SUDO" ]; then
+      if command -v sudo >/dev/null 2>&1; then
+        SUDO="sudo"
+      else
+        echo "ERROR: /usr/sbin is not writable and sudo is not available."
+        echo "Cannot configure policy-rc.d to prevent service auto-start."
+        return 1
+      fi
+    fi
+  fi
+
+  echo "Configuring policy-rc.d to prevent service auto-start..."
+  
+  if [ -f /usr/sbin/policy-rc.d ]; then
+    # Back up existing policy-rc.d if it's not ours
+    if ! grep -q "Prevent docker and containerd" /usr/sbin/policy-rc.d 2>/dev/null; then
+      echo "Backing up existing policy-rc.d..."
+      $SUDO cp /usr/sbin/policy-rc.d "/usr/sbin/policy-rc.d.backup.$(date +%s)"
+    fi
+  fi
+  
+  # Create a temporary policy-rc.d
+  $SUDO tee /usr/sbin/policy-rc.d > /dev/null <<'EOF'
+#!/bin/sh
+# Prevent docker and containerd from starting automatically during install
+if [ "$1" = "docker" ] || [ "$1" = "docker.service" ] || [ "$1" = "containerd" ] || [ "$1" = "containerd.service" ]; then
+  exit 101
+fi
+exit 0
+EOF
+  
+  $SUDO chmod +x /usr/sbin/policy-rc.d
+}
+
+# Function to allow services to auto-start again
+allow_service_autostart() {
+  # Check if we can write to /usr/sbin
+  if [ ! -w /usr/sbin ]; then
+    if [ -z "$SUDO" ]; then
+      if command -v sudo >/dev/null 2>&1; then
+        SUDO="sudo"
+      else
+        echo "WARNING: /usr/sbin is not writable and sudo is not available."
+        echo "Cannot restore policy-rc.d configuration."
+        return 1
+      fi
+    fi
+  fi
+
+  echo "Restoring service auto-start configuration..."
+  
+  # Remove our policy file
+  if [ -f /usr/sbin/policy-rc.d ]; then
+    # Check if it's ours (simple check)
+    if grep -q "Prevent docker and containerd" /usr/sbin/policy-rc.d 2>/dev/null; then
+      $SUDO rm -f /usr/sbin/policy-rc.d
+    fi
+  fi
+  
+  # Restore backup if it exists
+  # Use find to safely handle globs and avoid word splitting issues
+  local backup
+  backup=$(find /usr/sbin -maxdepth 1 -name "policy-rc.d.backup.*" -print -quit 2>/dev/null)
+  
+  if [ -n "$backup" ]; then
+    echo "Restoring backup: $backup"
+    $SUDO mv "$backup" /usr/sbin/policy-rc.d
+  fi
+}
+
 # Main function
 main() {
   # Handle command-line arguments
@@ -1431,7 +1526,7 @@ main() {
     case "$1" in
       apply-override|override)
         echo "=========================================="
-        echo "BigBear CasaOS Docker Version Fix Script 1.6.2"
+        echo "BigBear CasaOS Docker Version Fix Script 1.6.3"
         echo "=========================================="
         echo ""
         apply_docker_api_override
@@ -1439,7 +1534,7 @@ main() {
         ;;
       remove-override|no-override)
         echo "=========================================="
-        echo "BigBear CasaOS Docker Version Fix Script 1.6.2"
+        echo "BigBear CasaOS Docker Version Fix Script 1.6.3"
         echo "=========================================="
         echo ""
         remove_docker_api_override
@@ -1447,7 +1542,7 @@ main() {
         ;;
       help|--help|-h)
         echo "=========================================="
-        echo "BigBear CasaOS Docker Version Fix Script 1.6.2"
+        echo "BigBear CasaOS Docker Version Fix Script 1.6.3"
         echo "=========================================="
         echo ""
         show_usage
@@ -1568,17 +1663,22 @@ main() {
       echo "  docker-compose-plugin (latest)"
       echo ""
       
+      prevent_service_autostart
+      
       if ! $SUDO apt-get install -y \
         docker-ce \
         docker-ce-cli \
         ${containerd_spec} \
         docker-buildx-plugin \
         docker-compose-plugin; then
+        allow_service_autostart
         echo ""
         echo "ERROR: Docker installation failed!"
         echo "Please check your internet connection and try again."
         exit 1
       fi
+      
+      allow_service_autostart
       
       echo "✓ Docker installed successfully"
       echo ""
@@ -1659,14 +1759,16 @@ main() {
               
               # Stop Docker services
               echo "Stopping Docker services..."
-              $SUDO systemctl stop docker 2>/dev/null || true
-              $SUDO systemctl stop containerd 2>/dev/null || true
+              timeout 30 $SUDO systemctl stop docker 2>/dev/null || true
+              timeout 30 $SUDO systemctl stop containerd 2>/dev/null || true
               sleep 2
               echo ""
               
               # Downgrade containerd
               echo "Installing containerd.io=${CONTAINERD_FULL}..."
+              prevent_service_autostart
               if $SUDO apt-get install -y --allow-downgrades containerd.io=${CONTAINERD_FULL}; then
+                allow_service_autostart
                 echo "✓ Successfully downgraded containerd.io"
                 echo ""
                 
@@ -1692,6 +1794,7 @@ main() {
                   echo ""
                 fi
               else
+                allow_service_autostart
                 echo "ERROR: Failed to downgrade containerd.io"
                 echo ""
               fi
@@ -1702,14 +1805,16 @@ main() {
             
             # Stop Docker services
             echo "Stopping Docker services..."
-            $SUDO systemctl stop docker 2>/dev/null || true
-            $SUDO systemctl stop containerd 2>/dev/null || true
+            timeout 30 $SUDO systemctl stop docker 2>/dev/null || true
+            timeout 30 $SUDO systemctl stop containerd 2>/dev/null || true
             sleep 2
             echo ""
             
             # Downgrade containerd
             echo "Installing containerd.io=${CONTAINERD_FULL}..."
+            prevent_service_autostart
             if $SUDO apt-get install -y --allow-downgrades containerd.io=${CONTAINERD_FULL}; then
+              allow_service_autostart
               echo "✓ Successfully downgraded containerd.io"
               echo ""
               
@@ -1735,6 +1840,7 @@ main() {
                 echo ""
               fi
             else
+              allow_service_autostart
               echo "ERROR: Failed to downgrade containerd.io"
               echo ""
             fi
@@ -1868,11 +1974,11 @@ main() {
   dpkg -l | grep -E "docker-ce|containerd.io" | awk '{print "  " $2 " = " $3}' 2>/dev/null || echo "Unable to query package versions"
   echo ""
   echo "Docker Version Information:"
-  $SUDO docker version 2>&1 || echo "Unable to get Docker version"
+  timeout 10 $SUDO docker version 2>&1 || echo "Unable to get Docker version"
   echo ""
   if command -v docker &>/dev/null; then
     echo "Docker Compose Version:"
-    $SUDO docker compose version 2>&1 || echo "Unable to get Docker Compose version"
+    timeout 10 $SUDO docker compose version 2>&1 || echo "Unable to get Docker Compose version"
   fi
   echo ""
   
@@ -1892,7 +1998,7 @@ main() {
     # Check dockerd binary version
     if command -v dockerd &>/dev/null; then
       echo "1. dockerd binary version:"
-      dockerd --version 2>/dev/null || echo "   Unable to get dockerd version"
+      timeout 10 dockerd --version 2>/dev/null || echo "   Unable to get dockerd version"
       echo ""
     fi
     
