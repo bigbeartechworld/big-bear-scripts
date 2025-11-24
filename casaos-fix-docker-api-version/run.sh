@@ -442,7 +442,7 @@ add_user_to_docker_group() {
         echo "OR run this command to start a new shell with updated groups:"
         echo "  newgrp docker"
         echo ""
-        "After that, you'll be able to run docker commands without sudo."
+        echo "After that, you'll be able to run docker commands without sudo."
         echo ""
         return 0
       else
@@ -1447,10 +1447,16 @@ show_usage() {
 
 # Function to prevent services from auto-starting during install
 prevent_service_autostart() {
-  # Only configure policy-rc.d if we can write to /usr/sbin
+  # Check if we can write to /usr/sbin
   if [ ! -w /usr/sbin ]; then
     if [ -z "$SUDO" ]; then
-      return 0
+      if command -v sudo >/dev/null 2>&1; then
+        SUDO="sudo"
+      else
+        echo "ERROR: /usr/sbin is not writable and sudo is not available."
+        echo "Cannot configure policy-rc.d to prevent service auto-start."
+        return 1
+      fi
     fi
   fi
 
@@ -1460,7 +1466,7 @@ prevent_service_autostart() {
     # Back up existing policy-rc.d if it's not ours
     if ! grep -q "Prevent docker and containerd" /usr/sbin/policy-rc.d 2>/dev/null; then
       echo "Backing up existing policy-rc.d..."
-      $SUDO cp /usr/sbin/policy-rc.d /usr/sbin/policy-rc.d.backup.$(date +%s)
+      $SUDO cp /usr/sbin/policy-rc.d "/usr/sbin/policy-rc.d.backup.$(date +%s)"
     fi
   fi
   
@@ -1479,10 +1485,16 @@ EOF
 
 # Function to allow services to auto-start again
 allow_service_autostart() {
-  # Only proceed if we can write to /usr/sbin
+  # Check if we can write to /usr/sbin
   if [ ! -w /usr/sbin ]; then
     if [ -z "$SUDO" ]; then
-      return 0
+      if command -v sudo >/dev/null 2>&1; then
+        SUDO="sudo"
+      else
+        echo "WARNING: /usr/sbin is not writable and sudo is not available."
+        echo "Cannot restore policy-rc.d configuration."
+        return 1
+      fi
     fi
   fi
 
@@ -1497,7 +1509,10 @@ allow_service_autostart() {
   fi
   
   # Restore backup if it exists
-  local backup=$(ls /usr/sbin/policy-rc.d.backup.* 2>/dev/null | head -n1)
+  # Use find to safely handle globs and avoid word splitting issues
+  local backup
+  backup=$(find /usr/sbin -maxdepth 1 -name "policy-rc.d.backup.*" -print -quit 2>/dev/null)
+  
   if [ -n "$backup" ]; then
     echo "Restoring backup: $backup"
     $SUDO mv "$backup" /usr/sbin/policy-rc.d
