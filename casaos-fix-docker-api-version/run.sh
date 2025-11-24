@@ -19,6 +19,45 @@ else
   SUDO="sudo"
 fi
 
+# Check for non-interactive mode
+if [ "$NON_INTERACTIVE" = "true" ]; then
+  echo "Running in NON-INTERACTIVE mode"
+fi
+
+# Function to print colored output
+print_info() {
+  local msg="$1"
+  local color="$2"
+  
+  # Default to no color
+  local no_color="\033[0m"
+  local text_color="$no_color"
+  
+  case "$color" in
+    "green")
+      text_color="\033[32m"
+      ;;
+    "red")
+      text_color="\033[31m"
+      ;;
+    "yellow")
+      text_color="\033[33m"
+      ;;
+    "blue")
+      text_color="\033[34m"
+      ;;
+    "magenta")
+      text_color="\033[35m"
+      ;;
+    "cyan")
+      text_color="\033[36m"
+      ;;
+  esac
+  
+  # Print the message with the selected color
+  echo -e "${text_color}${msg}${no_color}"
+}
+
 echo "=========================================="
 echo "BigBear CasaOS Docker Version Fix Script 1.6.3"
 echo "=========================================="
@@ -1346,8 +1385,12 @@ downgrade_docker() {
           echo ""
           
           # Ask for user confirmation
-          read -p "Do you want to proceed with Docker reset? (yes/no): " -r REPLY 2>/dev/null || REPLY="no"
-          echo ""
+          if [ "$NON_INTERACTIVE" = "true" ]; then
+            REPLY="yes"
+          else
+            read -p "Do you want to proceed with Docker reset? (yes/no): " -r REPLY 2>/dev/null || REPLY="no"
+            echo ""
+          fi
           
           if [[ $REPLY =~ ^[Yy][Ee][Ss]$ ]] || [[ $REPLY =~ ^[Yy]$ ]]; then
             echo "Performing Docker reset..."
@@ -1573,8 +1616,12 @@ main() {
     echo ""
     echo "The script may hang or fail during package downloads."
     echo ""
-    read -p "Do you want to continue anyway? (yes/no): " -r REPLY
-    echo ""
+    if [ "$NON_INTERACTIVE" = "true" ]; then
+      REPLY="yes"
+    else
+      read -p "Do you want to continue anyway? (yes/no): " -r REPLY
+      echo ""
+    fi
     if [[ ! $REPLY =~ ^[Yy][Ee][Ss]$|^[Yy]$ ]]; then
       echo "Script cancelled."
       echo ""
