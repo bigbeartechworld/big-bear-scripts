@@ -28,7 +28,7 @@ fi
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
-YIGHLIGHT='\033[1;33m'
+YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
@@ -42,7 +42,7 @@ print_success() {
 }
 
 print_warning() {
-  echo -e "${YIGHLIGHT}[WARNING]${NC} $1"
+  echo -e "${YELLOW}[WARNING]${NC} $1"
 }
 
 print_error() {
@@ -364,7 +364,7 @@ upgrade_docker_to_latest() {
   echo "New API version:    $new_api"
   echo ""
   
-  if [[ "$new_api" == "1.45" ]] || [[ "$new_api" == "1.46" ]] || [[ "$new_api" > "1.44" ]]; then
+  if awk -v ver="$new_api" 'BEGIN {exit !(ver >= 1.45)}'; then
     print_success "Successfully upgraded to newer Docker (API $new_api)"
     print_warning "This version is incompatible with older CasaOS versions"
     return 0
@@ -404,10 +404,11 @@ test_fix_script() {
     echo ""
     print_success "Fix script completed"
   else
+    local exit_code=$?
     echo "=========================================="
     echo ""
-    print_error "Fix script failed with exit code $?"
-    return 1
+    print_error "Fix script failed with exit code $exit_code"
+    return $exit_code
   fi
   
   # Wait a moment for Docker to stabilize
