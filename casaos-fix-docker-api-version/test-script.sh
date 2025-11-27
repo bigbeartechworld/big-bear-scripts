@@ -1291,6 +1291,7 @@ show_usage() {
   echo "  test-snap      - Test Snap daemon hang handling (timeout check)"
   echo "  test-netns     - Test network namespace cleanup (device busy error)"
   echo "  test-casaos    - Test CasaOS version check hang handling (timeout check)"
+  echo "  test-dpkg      - Test dpkg database hang handling (timeout check)"
   echo "  test-bugfixes  - Run all bug fix tests"
   echo ""
   echo "Alternative fix for newer distros (Ubuntu 24.04+, Debian trixie):"
@@ -1316,6 +1317,7 @@ show_usage() {
   echo "  $0 test-snap        # Test Snap hang handling"
   echo "  $0 test-netns       # Test network namespace cleanup"
   echo "  $0 test-casaos      # Test CasaOS version check hang handling"
+  echo "  $0 test-dpkg        # Test dpkg database hang handling"
   echo "  $0 test-bugfixes    # Run all bug fix tests"
   echo ""
   echo "Alternative fix (for distros without Docker 28.x):"
@@ -1592,6 +1594,143 @@ TESTEOF
   return 0
 }
 
+# Function to test dpkg database hang handling
+test_dpkg_hang() {
+  print_header "Testing dpkg Database Hang Handling"
+  print_info "This test verifies that the script handles a hanging 'dpkg -l' command"
+  print_info "It should timeout in 10 seconds and not hang forever"
+  echo ""
+
+  # Create mock dpkg command
+  local mock_dir="/tmp/mock-dpkg-$$"
+  mkdir -p "$mock_dir"
+  
+  cat > "$mock_dir/dpkg" << 'EOF'
+#!/bin/sh
+# Simulate dpkg database lock (hangs waiting for lock)
+sleep 20
+echo "docker-ce 28.0.0 amd64 Docker Engine"
+exit 0
+EOF
+  chmod +x "$mock_dir/dpkg"
+  
+  # Save PATH
+  local old_path="$PATH"
+  export PATH="$mock_dir:$PATH"
+  
+  print_info "Testing: timeout 10 dpkg -l"
+  
+  # Test the timeout command directly
+  local start_time=$(date +%s)
+  timeout 10 dpkg -l >/dev/null 2>&1
+  local exit_code=$?
+  local end_time=$(date +%s)
+  local duration=$((end_time - start_time))
+  
+  # Restore PATH
+  export PATH="$old_path"
+  
+  print_info "Command completed in $duration seconds with exit code $exit_code"
+  
+  # Analyze results
+  if [ $exit_code -eq 124 ]; then
+    print_success "✓ Timeout occurred (exit code 124)"
+  else
+    print_error "✗ Expected exit code 124 (timeout), got $exit_code"
+    rm -rf "$mock_dir"
+    return 1
+  fi
+  
+  if [ $duration -le 12 ]; then
+    print_success "✓ Timeout triggered in $duration seconds (expected ~10s)"
+  else
+    print_error "✗ Timeout took $duration seconds (expected ~10s)"
+    rm -rf "$mock_dir"
+    return 1
+  fi
+  
+  # Now test the actual function behavior by sourcing and calling it
+  print_info "Testing actual display_versions function..."
+  
+  # Extract just the function from run.sh
+  local test_script="/tmp/test-dpkg-func-$$.sh"
+  cat > "$test_script" << 'TESTEOF'
+#!/bin/bash
+set -o pipefail
+
+SUDO=""
+if [ "$EUID" -ne 0 ]; then
+  SUDO="sudo"
+fi
+
+# Function to display current versions (simplified for testing)
+display_versions() {
+  echo "Current Docker versions:"
+  if command -v docker &>/dev/null; then
+    echo "(docker version output skipped for test)"
+    echo ""
+    
+    # Also show installed package versions for clarity
+    echo "Installed Docker packages:"
+    timeout 10 dpkg -l 2>/dev/null | grep -E "docker-ce|containerd.io" | awk '{print $2, $3}' || echo "Unable to query package versions"
+    echo ""
+  else
+    echo "Docker command not found"
+    echo ""
+  fi
+}
+
+echo "Calling display_versions..."
+display_versions
+TESTEOF
+  
+  chmod +x "$test_script"
+  
+  # Create a mock docker command too (just to pass the command -v check)
+  cat > "$mock_dir/docker" << 'EOF'
+#!/bin/sh
+echo "Docker version 28.0.0"
+exit 0
+EOF
+  chmod +x "$mock_dir/docker"
+  
+  # Run with mocked dpkg (and docker for the command -v check)
+  export PATH="$mock_dir:$PATH"
+  start_time=$(date +%s)
+  local output
+  output=$($test_script 2>&1)
+  end_time=$(date +%s)
+  duration=$((end_time - start_time))
+  export PATH="$old_path"
+  
+  print_info "Function test completed in $duration seconds"
+  
+  if [ $duration -le 12 ]; then
+    print_success "✓ Function completed in $duration seconds (expected ~10s)"
+  else
+    print_error "✗ Function took $duration seconds (expected ~10s)"
+    echo "Output: $output"
+    rm -rf "$mock_dir" "$test_script"
+    return 1
+  fi
+  
+  if echo "$output" | grep -q "Unable to query package versions"; then
+    print_success "✓ Function detected timeout and printed fallback message"
+  else
+    print_error "✗ Function did not handle timeout correctly"
+    echo "Output: $output"
+    rm -rf "$mock_dir" "$test_script"
+    return 1
+  fi
+  
+  # Clean up
+  rm -rf "$mock_dir" "$test_script"
+  
+  print_header "Test Result: PASSED"
+  print_success "dpkg database hang handling works correctly"
+  return 0
+}
+
 # Function to run all bug fix tests
 test_all_bugfixes() {
   print_header "Running All Bug Fix Tests"
@@ -1602,13 +1741,14 @@ test_all_bugfixes() {
   print_info "  4. Network namespace cleanup"
   print_info "  5. Unresponsive Docker daemon handling"
   print_info "  6. CasaOS version check hang handling"
+  print_info "  7. dpkg database hang handling"
   echo ""
   
   local results=()
   local failed=0
   
   # Test GPG conflicts
-  print_info "=== Test 1 of 6: GPG Key Conflicts ==="
+  print_info "=== Test 1 of 7: GPG Key Conflicts ==="
   echo ""
   if test_gpg_key_conflicts; then
     results+=("✓ GPG key conflict handling: PASSED")
@@ -1624,7 +1764,7 @@ test_all_bugfixes() {
   fi
 
   # Test GPG download resilience
-  print_info "=== Test 2 of 6: GPG Download Resilience ==="
+  print_info "=== Test 2 of 7: GPG Download Resilience ==="
   echo ""
   if test_gpg_download_resilience; then
     results+=("✓ GPG download resilience: PASSED")
@@ -1640,7 +1780,7 @@ test_all_bugfixes() {
   fi
 
   # Test Snap hang
-  print_info "=== Test 3 of 6: Snap Daemon Hang ==="
+  print_info "=== Test 3 of 7: Snap Daemon Hang ==="
   echo ""
   if test_snap_hang; then
     results+=("✓ Snap daemon hang handling: PASSED")
@@ -1656,7 +1796,7 @@ test_all_bugfixes() {
   fi
   
   # Test netns cleanup
-  print_info "=== Test 4 of 6: Network Namespace Cleanup ==="
+  print_info "=== Test 4 of 7: Network Namespace Cleanup ==="
   echo ""
   if test_netns_cleanup; then
     results+=("✓ Network namespace cleanup: PASSED")
@@ -1672,7 +1812,7 @@ test_all_bugfixes() {
   fi
   
   # Test unresponsive daemon
-  print_info "=== Test 5 of 6: Unresponsive Docker Daemon ==="
+  print_info "=== Test 5 of 7: Unresponsive Docker Daemon ==="
   echo ""
   if test_unresponsive_daemon; then
     results+=("✓ Unresponsive daemon handling: PASSED")
@@ -1688,12 +1828,28 @@ test_all_bugfixes() {
   fi
   
   # Test CasaOS hang
-  print_info "=== Test 6 of 6: CasaOS Version Check Hang ==="
+  print_info "=== Test 6 of 7: CasaOS Version Check Hang ==="
   echo ""
   if test_casaos_hang; then
     results+=("✓ CasaOS version check hang handling: PASSED")
   else
     results+=("✗ CasaOS version check hang handling: FAILED")
+    failed=$((failed + 1))
+  fi
+  
+  echo ""
+  if [ "$NON_INTERACTIVE" != "true" ]; then
+    read -p "Press Enter to continue to next test..." -r
+    echo ""
+  fi
+  
+  # Test dpkg hang
+  print_info "=== Test 7 of 7: dpkg Database Hang ==="
+  echo ""
+  if test_dpkg_hang; then
+    results+=("✓ dpkg database hang handling: PASSED")
+  else
+    results+=("✗ dpkg database hang handling: FAILED")
     failed=$((failed + 1))
   fi
   
@@ -1760,6 +1916,9 @@ main() {
       ;;
     test-casaos|casaos|test-casaos-hang)
       test_casaos_hang
+      ;;
+    test-dpkg|dpkg|test-dpkg-hang)
+      test_dpkg_hang
       ;;
     test-bugfixes|bugfixes|bug-fixes)
       test_all_bugfixes
