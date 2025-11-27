@@ -23,6 +23,11 @@ jobs:
           chmod +x casaos-fix-docker-api-version/run.sh
           chmod +x casaos-fix-docker-api-version/test-script.sh
 
+      - name: Run bug fix tests
+        working-directory: casaos-fix-docker-api-version
+        run: |
+          sudo -E ./test-script.sh test-bugfixes
+
       - name: Run full test
         working-directory: casaos-fix-docker-api-version
         run: |

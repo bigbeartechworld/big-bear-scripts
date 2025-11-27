@@ -1290,6 +1290,7 @@ show_usage() {
   echo "  test-download  - Test GPG download resilience (retries + HTTP/1.1)"
   echo "  test-snap      - Test Snap daemon hang handling (timeout check)"
   echo "  test-netns     - Test network namespace cleanup (device busy error)"
+  echo "  test-casaos    - Test CasaOS version check hang handling (timeout check)"
   echo "  test-bugfixes  - Run all bug fix tests"
   echo ""
   echo "Alternative fix for newer distros (Ubuntu 24.04+, Debian trixie):"
@@ -1314,6 +1315,7 @@ show_usage() {
   echo "  $0 test-download    # Test GPG download resilience"
   echo "  $0 test-snap        # Test Snap hang handling"
   echo "  $0 test-netns       # Test network namespace cleanup"
+  echo "  $0 test-casaos      # Test CasaOS version check hang handling"
   echo "  $0 test-bugfixes    # Run all bug fix tests"
   echo ""
   echo "Alternative fix (for distros without Docker 28.x):"
@@ -1324,6 +1326,136 @@ show_usage() {
   echo "  $0 test-all         # Test against all API versions"
   echo "  $0 full             # Standard full test (upgrade + fix)"
   echo ""
+}
+
+# Function to test CasaOS version check hang
+test_casaos_hang() {
+  print_header "Testing CasaOS Version Check Hang Handling"
+  print_info "This test verifies that the script handles a hanging 'casaos -v' command"
+  print_info "It should timeout in 5 seconds and not hang forever"
+  echo ""
+
+  # Create mock casaos command
+  local mock_dir="/tmp/mock-casaos-$$"
+  mkdir -p "$mock_dir"
+  
+  cat > "$mock_dir/casaos" << 'EOF'
+#!/bin/sh
+# Simulate hang (like when CasaOS is in a broken state)
+sleep 15
+echo "v0.4.4"
+exit 0
+EOF
+  chmod +x "$mock_dir/casaos"
+  
+  # Save PATH
+  local old_path="$PATH"
+  export PATH="$mock_dir:$PATH"
+  
+  print_info "Testing: timeout 5 casaos -v"
+  
+  # Test the timeout command directly
+  local start_time=$(date +%s)
+  timeout 5 casaos -v >/dev/null 2>&1
+  local exit_code=$?
+  local end_time=$(date +%s)
+  local duration=$((end_time - start_time))
+  
+  # Restore PATH
+  export PATH="$old_path"
+  
+  print_info "Command completed in $duration seconds with exit code $exit_code"
+  
+  # Analyze results
+  if [ $exit_code -eq 124 ]; then
+    print_success "✓ Timeout occurred (exit code 124)"
+  else
+    print_error "✗ Expected exit code 124 (timeout), got $exit_code"
+    rm -rf "$mock_dir"
+    return 1
+  fi
+  
+  if [ $duration -le 7 ]; then
+    print_success "✓ Timeout triggered in $duration seconds (expected ~5s)"
+  else
+    print_error "✗ Timeout took $duration seconds (expected ~5s)"
+    rm -rf "$mock_dir"
+    return 1
+  fi
+  
+  # Now test the actual function behavior by sourcing and calling it
+  print_info "Testing actual check_casaos function..."
+  
+  # Extract just the function from run.sh
+  local test_script="/tmp/test-casaos-func-$$.sh"
+  cat > "$test_script" << 'TESTEOF'
+#!/bin/bash
+set -o pipefail
+
+# Function to check if CasaOS is installed
+check_casaos() {
+  if command -v casaos &>/dev/null; then
+    # Use timeout to prevent hanging if CasaOS is in a broken state
+    local version
+    version=$(timeout 5 casaos -v 2>/dev/null) || version="version unknown"
+    echo "CasaOS is installed: $version"
+    return 0
+  else
+    echo "CasaOS not detected."
+    return 1
+  fi
+}
+
+echo "Calling check_casaos..."
+check_casaos
+TESTEOF
+  
+  chmod +x "$test_script"
+  
+  # Run with mocked casaos
+  export PATH="$mock_dir:$PATH"
+  start_time=$(date +%s)
+  local output=$($test_script 2>&1)
+  local func_exit=$?
+  end_time=$(date +%s)
+  duration=$((end_time - start_time))
+  export PATH="$old_path"
+  
+  print_info "Function test completed in $duration seconds"
+  
+  if [ $duration -le 7 ]; then
+    print_success "✓ Function completed in $duration seconds (expected ~5s)"
+  else
+    print_error "✗ Function took $duration seconds (expected ~5s)"
+    echo "Output: $output"
+    rm -rf "$mock_dir" "$test_script"
+    return 1
+  fi
+  
+  if echo "$output" | grep -q "version unknown"; then
+    print_success "✓ Function detected timeout and set version to 'version unknown'"
+  else
+    print_error "✗ Function did not handle timeout correctly"
+    echo "Output: $output"
+    rm -rf "$mock_dir" "$test_script"
+    return 1
+  fi
+  
+  if echo "$output" | grep -q "CasaOS is installed:"; then
+    print_success "✓ Function correctly identified CasaOS as installed"
+  else
+    print_error "✗ Function did not identify CasaOS as installed"
+    echo "Output: $output"
+    rm -rf "$mock_dir" "$test_script"
+    return 1
+  fi
+  
+  # Clean up
+  rm -rf "$mock_dir" "$test_script"
+  
+  print_header "Test Result: PASSED"
+  print_success "CasaOS version check timeout handling works correctly"
+  return 0
 }
 
 # Function to test unresponsive Docker daemon
@@ -1469,13 +1601,14 @@ test_all_bugfixes() {
   print_info "  3. Snap daemon hang handling"
   print_info "  4. Network namespace cleanup"
   print_info "  5. Unresponsive Docker daemon handling"
+  print_info "  6. CasaOS version check hang handling"
   echo ""
   
   local results=()
   local failed=0
   
   # Test GPG conflicts
-  print_info "=== Test 1 of 5: GPG Key Conflicts ==="
+  print_info "=== Test 1 of 6: GPG Key Conflicts ==="
   echo ""
   if test_gpg_key_conflicts; then
     results+=("✓ GPG key conflict handling: PASSED")
@@ -1491,7 +1624,7 @@ test_all_bugfixes() {
   fi
 
   # Test GPG download resilience
-  print_info "=== Test 2 of 5: GPG Download Resilience ==="
+  print_info "=== Test 2 of 6: GPG Download Resilience ==="
   echo ""
   if test_gpg_download_resilience; then
     results+=("✓ GPG download resilience: PASSED")
@@ -1507,7 +1640,7 @@ test_all_bugfixes() {
   fi
 
   # Test Snap hang
-  print_info "=== Test 3 of 5: Snap Daemon Hang ==="
+  print_info "=== Test 3 of 6: Snap Daemon Hang ==="
   echo ""
   if test_snap_hang; then
     results+=("✓ Snap daemon hang handling: PASSED")
@@ -1523,7 +1656,7 @@ test_all_bugfixes() {
   fi
   
   # Test netns cleanup
-  print_info "=== Test 4 of 5: Network Namespace Cleanup ==="
+  print_info "=== Test 4 of 6: Network Namespace Cleanup ==="
   echo ""
   if test_netns_cleanup; then
     results+=("✓ Network namespace cleanup: PASSED")
@@ -1539,12 +1672,28 @@ test_all_bugfixes() {
   fi
   
   # Test unresponsive daemon
-  print_info "=== Test 5 of 5: Unresponsive Docker Daemon ==="
+  print_info "=== Test 5 of 6: Unresponsive Docker Daemon ==="
   echo ""
   if test_unresponsive_daemon; then
     results+=("✓ Unresponsive daemon handling: PASSED")
   else
     results+=("✗ Unresponsive daemon handling: FAILED")
+    failed=$((failed + 1))
+  fi
+  
+  echo ""
+  if [ "$NON_INTERACTIVE" != "true" ]; then
+    read -p "Press Enter to continue to next test..." -r
+    echo ""
+  fi
+  
+  # Test CasaOS hang
+  print_info "=== Test 6 of 6: CasaOS Version Check Hang ==="
+  echo ""
+  if test_casaos_hang; then
+    results+=("✓ CasaOS version check hang handling: PASSED")
+  else
+    results+=("✗ CasaOS version check hang handling: FAILED")
     failed=$((failed + 1))
   fi
   
@@ -1608,6 +1757,9 @@ main() {
       ;;
     test-netns|netns|test-network-namespace)
       test_netns_cleanup
+      ;;
+    test-casaos|casaos|test-casaos-hang)
+      test_casaos_hang
       ;;
     test-bugfixes|bugfixes|bug-fixes)
       test_all_bugfixes

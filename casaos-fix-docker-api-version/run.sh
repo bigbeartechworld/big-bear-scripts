@@ -59,7 +59,7 @@ print_info() {
 }
 
 echo "=========================================="
-echo "BigBear CasaOS Docker Version Fix Script 1.6.3"
+echo "BigBear CasaOS Docker Version Fix Script 2025.11.0"
 echo "=========================================="
 echo ""
 echo "Here are some links:"
@@ -281,7 +281,10 @@ check_docker_binary_locations() {
 # Function to check if CasaOS is installed
 check_casaos() {
   if command -v casaos &>/dev/null; then
-    echo "CasaOS is installed: $(casaos -v 2>/dev/null || echo 'version unknown')"
+    # Use timeout to prevent hanging if CasaOS is in a broken state
+    local version
+    version=$(timeout 5 casaos -v 2>/dev/null) || version="version unknown"
+    echo "CasaOS is installed: $version"
     return 0
   else
     echo "CasaOS not detected."
@@ -1569,7 +1572,7 @@ main() {
     case "$1" in
       apply-override|override)
         echo "=========================================="
-        echo "BigBear CasaOS Docker Version Fix Script 1.6.3"
+        echo "BigBear CasaOS Docker Version Fix Script 2025.11.0"
         echo "=========================================="
         echo ""
         apply_docker_api_override
@@ -1577,7 +1580,7 @@ main() {
         ;;
       remove-override|no-override)
         echo "=========================================="
-        echo "BigBear CasaOS Docker Version Fix Script 1.6.3"
+        echo "BigBear CasaOS Docker Version Fix Script 2025.11.0"
         echo "=========================================="
         echo ""
         remove_docker_api_override
@@ -1585,7 +1588,7 @@ main() {
         ;;
       help|--help|-h)
         echo "=========================================="
-        echo "BigBear CasaOS Docker Version Fix Script 1.6.3"
+        echo "BigBear CasaOS Docker Version Fix Script 2025.11.0"
         echo "=========================================="
         echo ""
         show_usage
