@@ -19,8 +19,47 @@ else
   SUDO="sudo"
 fi
 
+# Check for non-interactive mode
+if [ "$NON_INTERACTIVE" = "true" ]; then
+  echo "Running in NON-INTERACTIVE mode"
+fi
+
+# Function to print colored output
+print_info() {
+  local msg="$1"
+  local color="$2"
+  
+  # Default to no color
+  local no_color="\033[0m"
+  local text_color="$no_color"
+  
+  case "$color" in
+    "green")
+      text_color="\033[32m"
+      ;;
+    "red")
+      text_color="\033[31m"
+      ;;
+    "yellow")
+      text_color="\033[33m"
+      ;;
+    "blue")
+      text_color="\033[34m"
+      ;;
+    "magenta")
+      text_color="\033[35m"
+      ;;
+    "cyan")
+      text_color="\033[36m"
+      ;;
+  esac
+  
+  # Print the message with the selected color
+  echo -e "${text_color}${msg}${no_color}"
+}
+
 echo "=========================================="
-echo "BigBear CasaOS Docker Version Fix Script 1.6.3"
+echo "BigBear CasaOS Docker Version Fix Script 2025.11.0"
 echo "=========================================="
 echo ""
 echo "Here are some links:"
@@ -242,7 +281,10 @@ check_docker_binary_locations() {
 # Function to check if CasaOS is installed
 check_casaos() {
   if command -v casaos &>/dev/null; then
-    echo "CasaOS is installed: $(casaos -v 2>/dev/null || echo 'version unknown')"
+    # Use timeout to prevent hanging if CasaOS is in a broken state
+    local version
+    version=$(timeout 5 casaos -v 2>/dev/null) || version="version unknown"
+    echo "CasaOS is installed: $version"
     return 0
   else
     echo "CasaOS not detected."
@@ -1346,8 +1388,12 @@ downgrade_docker() {
           echo ""
           
           # Ask for user confirmation
-          read -p "Do you want to proceed with Docker reset? (yes/no): " -r REPLY 2>/dev/null || REPLY="no"
-          echo ""
+          if [ "$NON_INTERACTIVE" = "true" ]; then
+            REPLY="yes"
+          else
+            read -p "Do you want to proceed with Docker reset? (yes/no): " -r REPLY 2>/dev/null || REPLY="no"
+            echo ""
+          fi
           
           if [[ $REPLY =~ ^[Yy][Ee][Ss]$ ]] || [[ $REPLY =~ ^[Yy]$ ]]; then
             echo "Performing Docker reset..."
@@ -1526,7 +1572,7 @@ main() {
     case "$1" in
       apply-override|override)
         echo "=========================================="
-        echo "BigBear CasaOS Docker Version Fix Script 1.6.3"
+        echo "BigBear CasaOS Docker Version Fix Script 2025.11.0"
         echo "=========================================="
         echo ""
         apply_docker_api_override
@@ -1534,7 +1580,7 @@ main() {
         ;;
       remove-override|no-override)
         echo "=========================================="
-        echo "BigBear CasaOS Docker Version Fix Script 1.6.3"
+        echo "BigBear CasaOS Docker Version Fix Script 2025.11.0"
         echo "=========================================="
         echo ""
         remove_docker_api_override
@@ -1542,7 +1588,7 @@ main() {
         ;;
       help|--help|-h)
         echo "=========================================="
-        echo "BigBear CasaOS Docker Version Fix Script 1.6.3"
+        echo "BigBear CasaOS Docker Version Fix Script 2025.11.0"
         echo "=========================================="
         echo ""
         show_usage
@@ -1573,8 +1619,12 @@ main() {
     echo ""
     echo "The script may hang or fail during package downloads."
     echo ""
-    read -p "Do you want to continue anyway? (yes/no): " -r REPLY
-    echo ""
+    if [ "$NON_INTERACTIVE" = "true" ]; then
+      REPLY="yes"
+    else
+      read -p "Do you want to continue anyway? (yes/no): " -r REPLY
+      echo ""
+    fi
     if [[ ! $REPLY =~ ^[Yy][Ee][Ss]$|^[Yy]$ ]]; then
       echo "Script cancelled."
       echo ""

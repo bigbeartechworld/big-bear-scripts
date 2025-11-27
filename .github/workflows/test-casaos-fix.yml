@@ -1,0 +1,34 @@
+name: Test CasaOS Fix Docker API Version
+
+on:
+  push:
+    paths:
+      - 'casaos-fix-docker-api-version/**'
+  pull_request:
+    paths:
+      - 'casaos-fix-docker-api-version/**'
+  workflow_dispatch:
+
+jobs:
+  test-fix-script:
+    runs-on: ubuntu-latest
+    env:
+      NON_INTERACTIVE: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Make scripts executable
+        run: |
+          chmod +x casaos-fix-docker-api-version/run.sh
+          chmod +x casaos-fix-docker-api-version/test-script.sh
+
+      - name: Run bug fix tests
+        working-directory: casaos-fix-docker-api-version
+        run: |
+          sudo -E ./test-script.sh test-bugfixes
+
+      - name: Run full test
+        working-directory: casaos-fix-docker-api-version
+        run: |
+          sudo -E ./test-script.sh full
