@@ -1021,8 +1021,8 @@ TESTEOF
   # Run with mocked snap
   export PATH="$mock_dir:$PATH"
   start_time=$(date +%s)
-  local output=$($test_script 2>&1)
-  local func_exit=$?
+  local output
+  output=$($test_script 2>&1)
   end_time=$(date +%s)
   duration=$((end_time - start_time))
   export PATH="$old_path"
@@ -1567,8 +1567,8 @@ TESTEOF
   # Run with mocked docker
   export PATH="$mock_dir:$PATH"
   start_time=$(date +%s)
-  local output=$($test_script 2>&1)
-  local func_exit=$?
+  local output
+  output=$($test_script 2>&1)
   end_time=$(date +%s)
   duration=$((end_time - start_time))
   export PATH="$old_path"
