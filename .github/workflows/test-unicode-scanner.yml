@@ -37,8 +37,7 @@ jobs:
       - name: Test scanning a clean file
         working-directory: check-for-unicode
         run: |
-          ./run.sh test-suite/clean-test.js
-          if [ $? -eq 0 ]; then
+          if ./run.sh test-suite/clean-test.js; then
             echo "✓ Clean file test passed"
           else
             echo "✗ Clean file test failed"
