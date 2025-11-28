@@ -1,0 +1,91 @@
+name: Test Unicode Security Scanner
+
+on:
+  push:
+    paths:
+      - 'check-for-unicode/**'
+  pull_request:
+    paths:
+      - 'check-for-unicode/**'
+  workflow_dispatch:
+
+jobs:
+  test-scanner:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Make scripts executable
+        run: |
+          chmod +x check-for-unicode/run.sh
+          chmod +x check-for-unicode/test-suite/run-tests.sh
+
+      - name: Display scanner version
+        working-directory: check-for-unicode
+        run: ./run.sh --version
+
+      - name: Run test suite
+        working-directory: check-for-unicode/test-suite
+        run: bash run-tests.sh
+
+      - name: Test scanner help
+        working-directory: check-for-unicode
+        run: ./run.sh --help
+
+      - name: Test scanning a clean file
+        working-directory: check-for-unicode
+        run: |
+          ./run.sh test-suite/clean-test.js
+          if [ $? -eq 0 ]; then
+            echo "✓ Clean file test passed"
+          else
+            echo "✗ Clean file test failed"
+            exit 1
+          fi
+
+      - name: Test detection of malicious file
+        working-directory: check-for-unicode
+        run: |
+          ./run.sh test-suite/trojan-source-test.js && exit 1 || true
+          echo "✓ Malicious file correctly detected"
+
+      - name: Test JSON output
+        working-directory: check-for-unicode
+        run: |
+          output=$(./run.sh --json test-suite/clean-test.js)
+          echo "$output" | jq .
+          if echo "$output" | jq -e '.scanner' > /dev/null; then
+            echo "✓ JSON output test passed"
+          else
+            echo "✗ JSON output test failed"
+            exit 1
+          fi
+
+      - name: Test quiet mode
+        working-directory: check-for-unicode
+        run: |
+          output=$(./run.sh --quiet test-suite/clean-test.js 2>&1)
+          if [ -z "$output" ]; then
+            echo "✓ Quiet mode test passed (no output)"
+          else
+            echo "✗ Quiet mode test failed (unexpected output: $output)"
+            exit 1
+          fi
+
+  test-scanner-macos:
+    runs-on: macos-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Make scripts executable
+        run: |
+          chmod +x check-for-unicode/run.sh
+          chmod +x check-for-unicode/test-suite/run-tests.sh
+
+      - name: Run test suite on macOS
+        working-directory: check-for-unicode/test-suite
+        run: bash run-tests.sh

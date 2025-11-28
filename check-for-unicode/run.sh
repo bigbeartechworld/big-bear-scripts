@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 
-# Unicode Security Scanner v2.1.0 AI+
+# Unicode Security Scanner v2025.11.0 AI+
 # Detects dangerous Unicode characters that can be used in security attacks
 # Including Trojan Source attacks (CVE-2021-42574) and other invisible characters
 
 # Script configuration
-VERSION="2.1.1"
+VERSION="2025.11.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Command-line options (defaults)
@@ -16,6 +16,10 @@ ALLOWLIST_FILE="${SCRIPT_DIR}/.unicode-allowlist"
 EXCLUDE_EMOJIS=false
 EXCLUDE_COMMON_UNICODE=false
 INCLUDE_BINARY=false
+
+# Allowlist storage (global)
+ALLOWLIST_CODES=""
+ALLOWLIST_RANGES=()
 
 # Check dependencies
 check_dependencies() {
@@ -53,6 +57,13 @@ OPTIONS:
     --include-binary    Include binary files (archives, images, executables, etc.)
                         By default, only text files are scanned to avoid false positives
 
+ALLOWLIST FORMAT:
+    The allowlist file supports:
+    - Single codes:     U+200B or 200B
+    - Inline comments:  U+200B  # Zero-width space for i18n
+    - Ranges:           U+0400-U+04FF  # Allow entire Cyrillic block
+    - Full-line comments starting with #
+
 EXAMPLES:
     $0 ./src/                              # Scan directory (text files only)
     $0 script.py                          # Scan single file
@@ -61,6 +72,7 @@ EXAMPLES:
     $0 --exclude-emojis ./ui/             # Skip emoji characters in UI code
     $0 --exclude-common ./docs/           # Very permissive for documentation
     $0 --include-binary ./                # Scan all files including binaries
+    $0 --allowlist .unicode-allowlist ./  # Use custom allowlist
 
 EXIT CODES:
     0 - No threats detected
@@ -81,15 +93,61 @@ show_version() {
 
 # Load allowlist (Unicode codes to ignore)
 load_allowlist() {
-    # Store allowlisted codes in a simple variable (space-separated)
+    # Reset global allowlist variables
     ALLOWLIST_CODES=""
+    ALLOWLIST_RANGES=()
+    local line_num=0
+    
     if [ -f "$ALLOWLIST_FILE" ]; then
-        while IFS= read -r line; do
-            # Skip comments and empty lines
-            [[ "$line" =~ ^#.*$ || -z "$line" ]] && continue
-            # Extract Unicode code (e.g., U+200B or 200B)
-            code=$(echo "$line" | grep -oE 'U\+[0-9A-Fa-f]+|^[0-9A-Fa-f]+' | tr -d 'U+' | tr '[:lower:]' '[:upper:]')
-            [ -n "$code" ] && ALLOWLIST_CODES="$ALLOWLIST_CODES $code "
+        while IFS= read -r line || [ -n "$line" ]; do
+            ((line_num++))
+            
+            # Skip empty lines
+            [[ -z "$line" ]] && continue
+            
+            # Skip full-line comments
+            [[ "$line" =~ ^[[:space:]]*# ]] && continue
+            
+            # Strip inline comments (everything after #)
+            line="${line%%#*}"
+            
+            # Trim whitespace
+            line=$(echo "$line" | xargs)
+            [[ -z "$line" ]] && continue
+            
+            # Check for range syntax (U+XXXX-U+YYYY or XXXX-YYYY)
+            if [[ "$line" =~ ^(U\+)?([0-9A-Fa-f]+)-(U\+)?([0-9A-Fa-f]+)$ ]]; then
+                local start_code="${BASH_REMATCH[2]}"
+                local end_code="${BASH_REMATCH[4]}"
+                start_code=$(echo "$start_code" | tr '[:lower:]' '[:upper:]')
+                end_code=$(echo "$end_code" | tr '[:lower:]' '[:upper:]')
+                
+                # Validate range
+                local start_dec=$((16#$start_code))
+                local end_dec=$((16#$end_code))
+                
+                if [ $start_dec -gt $end_dec ]; then
+                    [ "$QUIET_MODE" = false ] && echo "Warning: Invalid range at line $line_num in allowlist: $line (start > end)" >&2
+                    continue
+                fi
+                
+                ALLOWLIST_RANGES+=("$start_dec:$end_dec")
+                continue
+            fi
+            
+            # Extract single Unicode code (e.g., U+200B or 200B)
+            code=$(echo "$line" | grep -oE 'U\+[0-9A-Fa-f]+|^[0-9A-Fa-f]+' | head -1 | tr -d 'U+' | tr '[:lower:]' '[:upper:]')
+            
+            if [ -n "$code" ]; then
+                # Validate the code is a valid hex number
+                if ! [[ "$code" =~ ^[0-9A-F]+$ ]]; then
+                    [ "$QUIET_MODE" = false ] && echo "Warning: Invalid Unicode code at line $line_num in allowlist: $line" >&2
+                    continue
+                fi
+                ALLOWLIST_CODES="$ALLOWLIST_CODES $code "
+            else
+                [ "$QUIET_MODE" = false ] && echo "Warning: Could not parse line $line_num in allowlist: $line" >&2
+            fi
         done < "$ALLOWLIST_FILE"
     fi
 }
@@ -97,7 +155,23 @@ load_allowlist() {
 # Check if Unicode code is in allowlist
 is_allowed() {
     local code=$1
-    [[ "$ALLOWLIST_CODES" == *" $code "* ]]
+    
+    # Check direct match
+    [[ "$ALLOWLIST_CODES" == *" $code "* ]] && return 0
+    
+    # Check ranges
+    if [ ${#ALLOWLIST_RANGES[@]} -gt 0 ]; then
+        local code_dec=$((16#$code))
+        for range in "${ALLOWLIST_RANGES[@]}"; do
+            local start_dec="${range%%:*}"
+            local end_dec="${range##*:}"
+            if [ $code_dec -ge $start_dec ] && [ $code_dec -le $end_dec ]; then
+                return 0
+            fi
+        done
+    fi
+    
+    return 1
 }
 
 # Check if pattern is emoji-related
@@ -404,7 +478,7 @@ harmful_patterns=(
     "e28088:2008:Punctuation Space (can break tokenization)"
     "e28089:2009:Thin Space (subtle spacing attack)"
     "e2808a:200A:Hair Space (micro-spacing attack)"
-    "e2808b:202F:Narrow No-Break Space (line manipulation)"
+    "e280af:202F:Narrow No-Break Space (line manipulation)"
     "e281a5:2065:Inhibit Arabic Form Shaping (script confusion)"
     "e281a6:2066:Left-to-Right Isolate (directional confusion)"
     "e281a7:2067:Right-to-Left Isolate (directional confusion)"
