@@ -127,6 +127,85 @@ fi
 
 echo ""
 
+# Test allowlist functionality
+echo -e "${YELLOW}Testing allowlist functionality...${NC}"
+
+# Create a temp file with allowlisted dangerous Unicode
+ALLOWLIST_TEST_FILE="${SCRIPT_DIR}/allowlist-test-temp.txt"
+cat > "$ALLOWLIST_TEST_FILE" << 'EOF'
+# This file has zero-width space and Cyrillic 'a' which are allowlisted
+Test with zero-width: test​word
+Test with Cyrillic a: аdmin
+EOF
+
+if [ -f "${SCRIPT_DIR}/.unicode-allowlist-test" ]; then
+    ((total++))
+    # Test that allowlisted characters are NOT detected
+    if "$SCANNER" --allowlist "${SCRIPT_DIR}/.unicode-allowlist-test" "$ALLOWLIST_TEST_FILE" > /dev/null 2>&1; then
+        echo -e "  ${GREEN}✓ PASS${NC}: allowlist-test (allowlisted characters ignored)"
+        ((passed++))
+    else
+        echo -e "  ${RED}✗ FAIL${NC}: allowlist-test (allowlisted characters still detected)"
+        ((failed++))
+    fi
+    
+    ((total++))
+    # Test that same file WITHOUT allowlist DOES detect the characters
+    if "$SCANNER" "$ALLOWLIST_TEST_FILE" > /dev/null 2>&1; then
+        echo -e "  ${RED}✗ FAIL${NC}: allowlist-verify (dangerous chars not detected without allowlist)"
+        ((failed++))
+    else
+        echo -e "  ${GREEN}✓ PASS${NC}: allowlist-verify (dangerous chars detected without allowlist)"
+        ((passed++))
+    fi
+fi
+
+# Test range syntax in allowlist
+RANGE_ALLOWLIST="${SCRIPT_DIR}/.allowlist-range-test"
+cat > "$RANGE_ALLOWLIST" << 'EOF'
+# Allow all basic Cyrillic (U+0400-U+04FF)
+U+0400-U+04FF
+EOF
+
+# Create a test file with ONLY Cyrillic characters (no other dangerous Unicode)
+CYRILLIC_TEST_FILE="${SCRIPT_DIR}/cyrillic-only-temp.txt"
+cat > "$CYRILLIC_TEST_FILE" << 'EOF'
+# This file only has Cyrillic lookalikes
+Test with Cyrillic a: аdmin
+Test with Cyrillic e: еmail
+EOF
+
+((total++))
+# Test that range allowlist works (Cyrillic-only file should pass)
+if "$SCANNER" --allowlist "$RANGE_ALLOWLIST" "$CYRILLIC_TEST_FILE" > /dev/null 2>&1; then
+    echo -e "  ${GREEN}✓ PASS${NC}: range-allowlist (Cyrillic range allowed)"
+    ((passed++))
+else
+    echo -e "  ${RED}✗ FAIL${NC}: range-allowlist (Cyrillic range not working)"
+    ((failed++))
+fi
+
+# Test inline comments in allowlist
+INLINE_ALLOWLIST="${SCRIPT_DIR}/.allowlist-inline-test"
+cat > "$INLINE_ALLOWLIST" << 'EOF'
+U+200B  # Zero-width space for i18n purposes
+0430    # Cyrillic small a - needed for Russian text
+EOF
+
+((total++))
+if "$SCANNER" --allowlist "$INLINE_ALLOWLIST" "$ALLOWLIST_TEST_FILE" > /dev/null 2>&1; then
+    echo -e "  ${GREEN}✓ PASS${NC}: inline-comments (allowlist with inline comments works)"
+    ((passed++))
+else
+    echo -e "  ${RED}✗ FAIL${NC}: inline-comments (allowlist with inline comments failed)"
+    ((failed++))
+fi
+
+# Cleanup temp files
+rm -f "$ALLOWLIST_TEST_FILE" "$RANGE_ALLOWLIST" "$INLINE_ALLOWLIST" "$CYRILLIC_TEST_FILE"
+
+echo ""
+
 # Test that malicious files are STILL caught even with exclusion flags
 echo -e "${YELLOW}Testing malicious files with exclusion flags (should still detect)...${NC}"
 for file in "${SCRIPT_DIR}"/*injection* "${SCRIPT_DIR}"/*trojan*; do
