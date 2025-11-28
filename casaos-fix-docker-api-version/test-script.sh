@@ -1621,10 +1621,13 @@ EOF
   print_info "Testing: timeout 10 dpkg -l"
   
   # Test the timeout command directly
-  local start_time=$(date +%s)
+  local start_time
+  start_time=$(date +%s)
   timeout 10 dpkg -l >/dev/null 2>&1
-  local exit_code=$?
-  local end_time=$(date +%s)
+  local exit_code
+  exit_code=$?
+  local end_time
+  end_time=$(date +%s)
   local duration=$((end_time - start_time))
   
   # Restore PATH

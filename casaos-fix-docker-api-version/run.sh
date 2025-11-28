@@ -318,7 +318,8 @@ check_containerd_version() {
   fi
   
   # Get installed version (use timeout to prevent hanging if dpkg is locked)
-  local version=$(timeout 10 dpkg -l 2>/dev/null | grep containerd.io | awk '{print $3}' | head -n1)
+  local version
+  version=$(timeout 10 dpkg -l 2>/dev/null | grep containerd.io | awk '{print $3}' | head -n1)
   echo "$version"
   return 0
 }
