@@ -1663,7 +1663,7 @@ EOF
   print_info "Testing actual display_versions function..."
   
   # Extract just the function from run.sh - but use explicit mock path
-  local test_script="/tmp/test-dpkg-func-$$.sh"
+  test_script="/tmp/test-dpkg-func-$$.sh"
   cat > "$test_script" << TESTEOF
 #!/bin/bash
 set -o pipefail
