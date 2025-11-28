@@ -59,7 +59,7 @@ print_info() {
 }
 
 echo "=========================================="
-echo "BigBear CasaOS Docker Version Fix Script 2025.11.0"
+echo "BigBear CasaOS Docker Version Fix Script 2025.11.1"
 echo "=========================================="
 echo ""
 echo "Here are some links:"
@@ -90,7 +90,7 @@ display_versions() {
     
     # Also show installed package versions for clarity
     echo "Installed Docker packages:"
-    dpkg -l | grep -E "docker-ce|containerd.io" | awk '{print $2, $3}' 2>/dev/null || echo "Unable to query package versions"
+    timeout 10 dpkg -l 2>/dev/null | grep -E "docker-ce|containerd.io" | awk '{print $2, $3}' || echo "Unable to query package versions"
     echo ""
   else
     echo "Docker command not found"
@@ -317,8 +317,9 @@ check_containerd_version() {
     return 1
   fi
   
-  # Get installed version
-  local version=$(dpkg -l | grep containerd.io | awk '{print $3}' | head -n1)
+  # Get installed version (use timeout to prevent hanging if dpkg is locked)
+  local version
+  version=$(timeout 10 dpkg -l 2>/dev/null | grep containerd.io | awk '{print $3}' | head -n1)
   echo "$version"
   return 0
 }
@@ -961,8 +962,8 @@ remove_standalone_docker_compose() {
   if command -v docker-compose &>/dev/null; then
     echo "Standalone docker-compose found. Checking installation method..."
 
-    # Check if docker-compose was installed via package manager
-    if dpkg -l | grep -qw docker-compose 2>/dev/null; then
+    # Check if docker-compose was installed via package manager (use timeout to prevent hang)
+    if timeout 10 dpkg -l 2>/dev/null | grep -qw docker-compose; then
       echo "Removing docker-compose installed via package manager..."
       $SUDO apt-get remove -y docker-compose
     else
@@ -1085,7 +1086,7 @@ downgrade_docker() {
   echo ""
 
   # Check if Docker is already installed and remove it to ensure clean downgrade
-  if dpkg -l | grep -qE "docker-ce|containerd.io"; then
+  if timeout 10 dpkg -l 2>/dev/null | grep -qE "docker-ce|containerd.io"; then
     echo "Removing existing Docker packages to ensure clean installation..."
     
     # Stop Docker services before removal
@@ -1572,7 +1573,7 @@ main() {
     case "$1" in
       apply-override|override)
         echo "=========================================="
-        echo "BigBear CasaOS Docker Version Fix Script 2025.11.0"
+        echo "BigBear CasaOS Docker Version Fix Script 2025.11.1"
         echo "=========================================="
         echo ""
         apply_docker_api_override
@@ -1580,7 +1581,7 @@ main() {
         ;;
       remove-override|no-override)
         echo "=========================================="
-        echo "BigBear CasaOS Docker Version Fix Script 2025.11.0"
+        echo "BigBear CasaOS Docker Version Fix Script 2025.11.1"
         echo "=========================================="
         echo ""
         remove_docker_api_override
@@ -1588,7 +1589,7 @@ main() {
         ;;
       help|--help|-h)
         echo "=========================================="
-        echo "BigBear CasaOS Docker Version Fix Script 2025.11.0"
+        echo "BigBear CasaOS Docker Version Fix Script 2025.11.1"
         echo "=========================================="
         echo ""
         show_usage
@@ -2021,7 +2022,7 @@ main() {
   echo "=========================================="
   echo ""
   echo "Installed Docker Package Versions:"
-  dpkg -l | grep -E "docker-ce|containerd.io" | awk '{print "  " $2 " = " $3}' 2>/dev/null || echo "Unable to query package versions"
+  timeout 10 dpkg -l 2>/dev/null | grep -E "docker-ce|containerd.io" | awk '{print "  " $2 " = " $3}' || echo "Unable to query package versions"
   echo ""
   echo "Docker Version Information:"
   timeout 10 $SUDO docker version 2>&1 || echo "Unable to get Docker version"
@@ -2077,7 +2078,7 @@ main() {
     
     # Check installed packages
     echo "4. Installed Docker packages:"
-    dpkg -l | grep -E "docker-ce|containerd.io" | awk '{print "   " $2 " = " $3}' 2>/dev/null || echo "   Unable to query packages"
+    timeout 10 dpkg -l 2>/dev/null | grep -E "docker-ce|containerd.io" | awk '{print "   " $2 " = " $3}' || echo "   Unable to query packages"
     echo ""
     
     # Check Docker service status
