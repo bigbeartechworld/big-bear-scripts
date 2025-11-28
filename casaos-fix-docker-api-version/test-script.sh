@@ -1601,8 +1601,11 @@ test_dpkg_hang() {
   print_info "It should timeout in 10 seconds and not hang forever"
   echo ""
 
+  # Declare local variables upfront to avoid SC2155 issues with $?
+  local mock_dir old_path which_dpkg start_time exit_code end_time duration output test_script
+
   # Create mock dpkg command
-  local mock_dir="/tmp/mock-dpkg-$$"
+  mock_dir="/tmp/mock-dpkg-$$"
   mkdir -p "$mock_dir"
   
   cat > "$mock_dir/dpkg" << 'EOF'
@@ -1614,24 +1617,28 @@ exit 0
 EOF
   chmod +x "$mock_dir/dpkg"
   
-  # Save PATH
-  local old_path="$PATH"
+  # Save PATH and update it
+  old_path="$PATH"
   export PATH="$mock_dir:$PATH"
+  # Clear bash's command hash table so it finds our mock
+  hash -r
   
-  print_info "Testing: timeout 10 dpkg -l"
+  print_info "Testing: timeout 10 dpkg -l (using mock at $mock_dir/dpkg)"
   
-  # Test the timeout command directly
-  local start_time
+  # Verify mock is being used
+  which_dpkg=$(which dpkg 2>/dev/null)
+  print_info "Using dpkg at: $which_dpkg"
+  
+  # Test the timeout command directly using explicit path to mock
   start_time=$(date +%s)
-  timeout 10 dpkg -l >/dev/null 2>&1
-  local exit_code
+  timeout 10 "$mock_dir/dpkg" -l >/dev/null 2>&1
   exit_code=$?
-  local end_time
   end_time=$(date +%s)
-  local duration=$((end_time - start_time))
+  duration=$((end_time - start_time))
   
   # Restore PATH
   export PATH="$old_path"
+  hash -r
   
   print_info "Command completed in $duration seconds with exit code $exit_code"
   
@@ -1655,16 +1662,21 @@ EOF
   # Now test the actual function behavior by sourcing and calling it
   print_info "Testing actual display_versions function..."
   
-  # Extract just the function from run.sh
+  # Extract just the function from run.sh - but use explicit mock path
   local test_script="/tmp/test-dpkg-func-$$.sh"
-  cat > "$test_script" << 'TESTEOF'
+  cat > "$test_script" << TESTEOF
 #!/bin/bash
 set -o pipefail
 
 SUDO=""
-if [ "$EUID" -ne 0 ]; then
+if [ "\$EUID" -ne 0 ]; then
   SUDO="sudo"
 fi
+
+# Override dpkg to use our mock
+dpkg() {
+  "$mock_dir/dpkg" "\$@"
+}
 
 # Function to display current versions (simplified for testing)
 display_versions() {
@@ -1675,7 +1687,7 @@ display_versions() {
     
     # Also show installed package versions for clarity
     echo "Installed Docker packages:"
-    timeout 10 dpkg -l 2>/dev/null | grep -E "docker-ce|containerd.io" | awk '{print $2, $3}' || echo "Unable to query package versions"
+    timeout 10 dpkg -l 2>/dev/null | grep -E "docker-ce|containerd.io" | awk '{print \$2, \$3}' || echo "Unable to query package versions"
     echo ""
   else
     echo "Docker command not found"
@@ -1699,12 +1711,13 @@ EOF
   
   # Run with mocked dpkg (and docker for the command -v check)
   export PATH="$mock_dir:$PATH"
+  hash -r
   start_time=$(date +%s)
-  local output
   output=$($test_script 2>&1)
   end_time=$(date +%s)
   duration=$((end_time - start_time))
   export PATH="$old_path"
+  hash -r
   
   print_info "Function test completed in $duration seconds"
   
