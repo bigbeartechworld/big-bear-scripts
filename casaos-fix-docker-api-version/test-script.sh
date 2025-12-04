@@ -1292,6 +1292,7 @@ show_usage() {
   echo "  test-netns     - Test network namespace cleanup (device busy error)"
   echo "  test-casaos    - Test CasaOS version check hang handling (timeout check)"
   echo "  test-dpkg      - Test dpkg database hang handling (timeout check)"
+  echo "  test-polling   - Test Docker startup polling (two runs fix)"
   echo "  test-bugfixes  - Run all bug fix tests"
   echo ""
   echo "Alternative fix for newer distros (Ubuntu 24.04+, Debian trixie):"
@@ -1318,6 +1319,7 @@ show_usage() {
   echo "  $0 test-netns       # Test network namespace cleanup"
   echo "  $0 test-casaos      # Test CasaOS version check hang handling"
   echo "  $0 test-dpkg        # Test dpkg database hang handling"
+  echo "  $0 test-polling     # Test Docker startup polling (two runs fix)"
   echo "  $0 test-bugfixes    # Run all bug fix tests"
   echo ""
   echo "Alternative fix (for distros without Docker 28.x):"
@@ -1747,6 +1749,220 @@ EOF
   return 0
 }
 
+# Function to test Docker startup polling (fixes the "two runs needed" issue)
+test_docker_startup_polling() {
+  print_header "Testing Docker Startup Polling"
+  print_info "This test verifies the fix for the 'two runs needed' bug"
+  print_info "The script now uses active polling to wait for Docker to be ready"
+  print_info "instead of fixed sleep times that were often too short"
+  echo ""
+  
+  # Test 1: Verify the polling logic exists in run.sh
+  print_info "Test 1: Checking for active polling loops in run.sh..."
+  
+  local run_script="./run.sh"
+  if [ ! -f "$run_script" ]; then
+    print_error "run.sh not found in current directory"
+    return 1
+  fi
+  
+  # Check for the containerd polling loop
+  if grep -q "Waiting for containerd to be fully ready" "$run_script"; then
+    print_success "✓ Containerd polling loop found"
+  else
+    print_error "✗ Containerd polling loop NOT found"
+    print_info "Expected: 'Waiting for containerd to be fully ready'"
+    return 1
+  fi
+  
+  # Check for the Docker polling loop with docker info verification
+  if grep -q "Waiting for Docker to be fully ready" "$run_script" && grep -q 'docker info' "$run_script"; then
+    print_success "✓ Docker polling loop with 'docker info' verification found"
+  else
+    print_error "✗ Docker polling loop with 'docker info' verification NOT found"
+    print_info "Expected: 'Waiting for Docker to be fully ready' and 'docker info' check"
+    return 1
+  fi
+  
+  # Check for sleep after daemon-reload
+  if grep -A1 'systemctl daemon-reload' "$run_script" | grep -q 'sleep 2'; then
+    print_success "✓ Sleep after daemon-reload found (prevents race condition)"
+  else
+    print_warning "⚠ Sleep after daemon-reload may be missing or different"
+  fi
+  
+  echo ""
+  
+  # Test 2: Simulate slow Docker startup and verify polling works
+  print_info "Test 2: Testing polling behavior with simulated slow startup..."
+  
+  local mock_dir="/tmp/mock-docker-polling-$$"
+  mkdir -p "$mock_dir"
+  
+  # Create a state file to track docker info calls
+  local state_file="$mock_dir/docker_state"
+  echo "0" > "$state_file"
+  
+  # Create mock docker that fails first few times, then succeeds
+  cat > "$mock_dir/docker" << 'EOF'
+#!/bin/bash
+STATE_FILE="/tmp/mock-docker-polling-$$/docker_state"
+if [ ! -f "$STATE_FILE" ]; then
+  echo "0" > "$STATE_FILE"
+fi
+
+# Read current call count
+count=$(cat "$STATE_FILE")
+count=$((count + 1))
+echo "$count" > "$STATE_FILE"
+
+# For 'info' command: fail first 2 times, succeed after
+if [ "$1" = "info" ]; then
+  if [ $count -le 2 ]; then
+    # Simulate Docker not ready yet
+    exit 1
+  else
+    # Docker is ready now
+    echo "Docker is ready"
+    exit 0
+  fi
+fi
+
+# For 'version' command: always succeed with mock version
+if [ "$1" = "version" ]; then
+  echo "Docker version 28.0.4, build 2a55bb0"
+  exit 0
+fi
+
+exit 0
+EOF
+  
+  # Fix the state file path in the mock script
+  sed -i.bak "s|/tmp/mock-docker-polling-\$\$|$mock_dir|g" "$mock_dir/docker"
+  chmod +x "$mock_dir/docker"
+  
+  # Create mock systemctl
+  cat > "$mock_dir/systemctl" << 'EOF'
+#!/bin/bash
+# Always report docker as active
+if [ "$1" = "is-active" ] && [ "$2" = "--quiet" ] && [ "$3" = "docker" ]; then
+  exit 0
+fi
+if [ "$1" = "is-active" ] && [ "$2" = "--quiet" ] && [ "$3" = "containerd" ]; then
+  exit 0
+fi
+# Pass through other commands
+exit 0
+EOF
+  chmod +x "$mock_dir/systemctl"
+  
+  # Create test script that simulates the polling logic from run.sh
+  local test_script="$mock_dir/test_polling.sh"
+  cat > "$test_script" << 'TESTEOF'
+#!/bin/bash
+set -o pipefail
+
+SUDO=""
+
+echo "Testing Docker startup polling..."
+echo ""
+
+# Simulate the polling logic from run.sh
+echo "Waiting for Docker to be fully ready..."
+docker_ready=false
+for i in {1..15}; do
+  if $SUDO systemctl is-active --quiet docker 2>/dev/null; then
+    if timeout 5 $SUDO docker info >/dev/null 2>&1; then
+      docker_ready=true
+      echo "✓ Docker is ready and responding (attempt $i)"
+      break
+    fi
+  fi
+  echo "  Waiting for Docker... ($i/15)"
+  sleep 0.1  # Use short sleep for test speed
+done
+
+if [ "$docker_ready" = true ]; then
+  echo ""
+  echo "SUCCESS: Docker became ready after polling"
+  exit 0
+else
+  echo ""
+  echo "FAILURE: Docker did not become ready"
+  exit 1
+fi
+TESTEOF
+  chmod +x "$test_script"
+  
+  # Save PATH and run with mocks
+  local old_path="$PATH"
+  export PATH="$mock_dir:$PATH"
+  hash -r
+  
+  local start_time=$(date +%s)
+  local output
+  output=$("$test_script" 2>&1)
+  local exit_code=$?
+  local end_time=$(date +%s)
+  local duration=$((end_time - start_time))
+  
+  # Restore PATH
+  export PATH="$old_path"
+  hash -r
+  
+  echo "$output"
+  echo ""
+  
+  if [ $exit_code -eq 0 ]; then
+    print_success "✓ Polling detected Docker became ready after retries"
+  else
+    print_error "✗ Polling failed to detect Docker readiness"
+    rm -rf "$mock_dir"
+    return 1
+  fi
+  
+  # Verify multiple attempts were made
+  local final_count=$(cat "$state_file" 2>/dev/null || echo "0")
+  if [ "$final_count" -ge 3 ]; then
+    print_success "✓ Multiple polling attempts were made ($final_count calls to docker)"
+  else
+    print_warning "⚠ Expected at least 3 docker calls, got $final_count"
+  fi
+  
+  echo ""
+  
+  # Test 3: Verify that old fixed sleep times are replaced with polling
+  print_info "Test 3: Verifying fixed 'sleep 5' for Docker startup is removed..."
+  
+  # The problematic pattern was "sleep 5  # Give Docker more time"
+  # This should be replaced with the polling loop
+  if grep -n 'sleep 5.*Give Docker more time' "$run_script" 2>/dev/null; then
+    print_error "✗ Old fixed 'sleep 5' pattern still exists"
+    print_info "This should be replaced with active polling"
+    rm -rf "$mock_dir"
+    return 1
+  else
+    print_success "✓ Old fixed 'sleep 5' pattern has been removed"
+  fi
+  
+  # Check that polling loop exists in docker startup section
+  if grep -A30 "Enabling and starting Docker service" "$run_script" | grep -q "Waiting for Docker to be fully ready"; then
+    print_success "✓ Polling loop is in the correct location (after Docker service start)"
+  else
+    print_error "✗ Polling loop not found after Docker service start"
+    rm -rf "$mock_dir"
+    return 1
+  fi
+  
+  # Cleanup
+  rm -rf "$mock_dir"
+  
+  print_header "Test Result: PASSED"
+  print_success "Docker startup polling fix is correctly implemented"
+  print_info "The 'two runs needed' bug should now be fixed"
+  return 0
+}
+
 # Function to run all bug fix tests
 test_all_bugfixes() {
   print_header "Running All Bug Fix Tests"
@@ -1758,13 +1974,14 @@ test_all_bugfixes() {
   print_info "  5. Unresponsive Docker daemon handling"
   print_info "  6. CasaOS version check hang handling"
   print_info "  7. dpkg database hang handling"
+  print_info "  8. Docker startup polling (two runs fix)"
   echo ""
   
   local results=()
   local failed=0
   
   # Test GPG conflicts
-  print_info "=== Test 1 of 7: GPG Key Conflicts ==="
+  print_info "=== Test 1 of 8: GPG Key Conflicts ==="
   echo ""
   if test_gpg_key_conflicts; then
     results+=("✓ GPG key conflict handling: PASSED")
@@ -1780,7 +1997,7 @@ test_all_bugfixes() {
   fi
 
   # Test GPG download resilience
-  print_info "=== Test 2 of 7: GPG Download Resilience ==="
+  print_info "=== Test 2 of 8: GPG Download Resilience ==="
   echo ""
   if test_gpg_download_resilience; then
     results+=("✓ GPG download resilience: PASSED")
@@ -1796,7 +2013,7 @@ test_all_bugfixes() {
   fi
 
   # Test Snap hang
-  print_info "=== Test 3 of 7: Snap Daemon Hang ==="
+  print_info "=== Test 3 of 8: Snap Daemon Hang ==="
   echo ""
   if test_snap_hang; then
     results+=("✓ Snap daemon hang handling: PASSED")
@@ -1812,7 +2029,7 @@ test_all_bugfixes() {
   fi
   
   # Test netns cleanup
-  print_info "=== Test 4 of 7: Network Namespace Cleanup ==="
+  print_info "=== Test 4 of 8: Network Namespace Cleanup ==="
   echo ""
   if test_netns_cleanup; then
     results+=("✓ Network namespace cleanup: PASSED")
@@ -1828,7 +2045,7 @@ test_all_bugfixes() {
   fi
   
   # Test unresponsive daemon
-  print_info "=== Test 5 of 7: Unresponsive Docker Daemon ==="
+  print_info "=== Test 5 of 8: Unresponsive Docker Daemon ==="
   echo ""
   if test_unresponsive_daemon; then
     results+=("✓ Unresponsive daemon handling: PASSED")
@@ -1844,7 +2061,7 @@ test_all_bugfixes() {
   fi
   
   # Test CasaOS hang
-  print_info "=== Test 6 of 7: CasaOS Version Check Hang ==="
+  print_info "=== Test 6 of 8: CasaOS Version Check Hang ==="
   echo ""
   if test_casaos_hang; then
     results+=("✓ CasaOS version check hang handling: PASSED")
@@ -1860,12 +2077,28 @@ test_all_bugfixes() {
   fi
   
   # Test dpkg hang
-  print_info "=== Test 7 of 7: dpkg Database Hang ==="
+  print_info "=== Test 7 of 8: dpkg Database Hang ==="
   echo ""
   if test_dpkg_hang; then
     results+=("✓ dpkg database hang handling: PASSED")
   else
     results+=("✗ dpkg database hang handling: FAILED")
+    failed=$((failed + 1))
+  fi
+  
+  echo ""
+  if [ "$NON_INTERACTIVE" != "true" ]; then
+    read -p "Press Enter to continue to next test..." -r
+    echo ""
+  fi
+  
+  # Test Docker startup polling (two runs fix)
+  print_info "=== Test 8 of 8: Docker Startup Polling (Two Runs Fix) ==="
+  echo ""
+  if test_docker_startup_polling; then
+    results+=("✓ Docker startup polling: PASSED")
+  else
+    results+=("✗ Docker startup polling: FAILED")
     failed=$((failed + 1))
   fi
   
@@ -1935,6 +2168,9 @@ main() {
       ;;
     test-dpkg|dpkg|test-dpkg-hang)
       test_dpkg_hang
+      ;;
+    test-polling|polling|test-docker-polling|two-runs)
+      test_docker_startup_polling
       ;;
     test-bugfixes|bugfixes|bug-fixes)
       test_all_bugfixes
