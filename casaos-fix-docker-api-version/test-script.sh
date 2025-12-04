@@ -1804,21 +1804,22 @@ test_docker_startup_polling() {
   echo "0" > "$state_file"
   
   # Create mock docker that fails first few times, then succeeds
-  cat > "$mock_dir/docker" << 'EOF'
+  # Note: We use double quotes for the heredoc delimiter to allow variable expansion
+  cat > "$mock_dir/docker" << EOF
 #!/bin/bash
-STATE_FILE="/tmp/mock-docker-polling-$$/docker_state"
-if [ ! -f "$STATE_FILE" ]; then
-  echo "0" > "$STATE_FILE"
+STATE_FILE="$state_file"
+if [ ! -f "\$STATE_FILE" ]; then
+  echo "0" > "\$STATE_FILE"
 fi
 
 # Read current call count
-count=$(cat "$STATE_FILE")
-count=$((count + 1))
-echo "$count" > "$STATE_FILE"
+count=\$(cat "\$STATE_FILE")
+count=\$((count + 1))
+echo "\$count" > "\$STATE_FILE"
 
 # For 'info' command: fail first 2 times, succeed after
-if [ "$1" = "info" ]; then
-  if [ $count -le 2 ]; then
+if [ "\$1" = "info" ]; then
+  if [ \$count -le 2 ]; then
     # Simulate Docker not ready yet
     exit 1
   else
@@ -1829,16 +1830,13 @@ if [ "$1" = "info" ]; then
 fi
 
 # For 'version' command: always succeed with mock version
-if [ "$1" = "version" ]; then
+if [ "\$1" = "version" ]; then
   echo "Docker version 28.0.4, build 2a55bb0"
   exit 0
 fi
 
 exit 0
 EOF
-  
-  # Fix the state file path in the mock script
-  sed -i.bak "s|/tmp/mock-docker-polling-\$\$|$mock_dir|g" "$mock_dir/docker"
   chmod +x "$mock_dir/docker"
   
   # Create mock systemctl
