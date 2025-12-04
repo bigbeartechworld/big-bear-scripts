@@ -59,7 +59,7 @@ print_info() {
 }
 
 echo "=========================================="
-echo "BigBear CasaOS Docker Version Fix Script 2025.11.1"
+echo "BigBear CasaOS Docker Version Fix Script 2025.12.0"
 echo "=========================================="
 echo ""
 echo "Here are some links:"
@@ -595,16 +595,30 @@ EOF
   # Reload systemd daemon
   echo "Reloading systemd daemon..."
   $SUDO systemctl daemon-reload
+  sleep 2
   echo ""
   
   # Restart Docker
   echo "Restarting Docker service..."
   timeout 30 $SUDO systemctl restart docker
-  sleep 3
+  
+  # Wait for Docker to be fully ready with active polling
+  echo "Waiting for Docker to be fully ready..."
+  local docker_ready=false
+  for i in {1..10}; do
+    if $SUDO systemctl is-active --quiet docker 2>/dev/null; then
+      if timeout 5 $SUDO docker info >/dev/null 2>&1; then
+        docker_ready=true
+        break
+      fi
+    fi
+    echo "  Waiting for Docker... ($i/10)"
+    sleep 2
+  done
   echo ""
   
   # Verify Docker is running
-  if $SUDO systemctl is-active --quiet docker; then
+  if [ "$docker_ready" = true ] || $SUDO systemctl is-active --quiet docker; then
     echo "✓ Docker service restarted successfully"
     
     # Show current Docker info
@@ -651,15 +665,29 @@ remove_docker_api_override() {
   # Reload systemd daemon
   echo "Reloading systemd daemon..."
   $SUDO systemctl daemon-reload
+  sleep 2
   echo ""
   
   # Restart Docker
   echo "Restarting Docker service..."
   timeout 30 $SUDO systemctl restart docker
-  sleep 3
+  
+  # Wait for Docker to be fully ready with active polling
+  echo "Waiting for Docker to be fully ready..."
+  local docker_ready=false
+  for i in {1..10}; do
+    if $SUDO systemctl is-active --quiet docker 2>/dev/null; then
+      if timeout 5 $SUDO docker info >/dev/null 2>&1; then
+        docker_ready=true
+        break
+      fi
+    fi
+    echo "  Waiting for Docker... ($i/10)"
+    sleep 2
+  done
   echo ""
   
-  if $SUDO systemctl is-active --quiet docker; then
+  if [ "$docker_ready" = true ] || $SUDO systemctl is-active --quiet docker; then
     echo "✓ Docker API override removed successfully"
     echo ""
     return 0
@@ -1230,13 +1258,15 @@ downgrade_docker() {
   # Reload systemd and restart Docker service
   echo "Reloading systemd daemon..."
   $SUDO systemctl daemon-reload
+  # Wait for systemd to fully process the reload
+  sleep 2
   echo ""
 
   # Ensure Docker is completely stopped before starting
   echo "Step 7.2: Ensuring Docker is completely stopped..."
   timeout 30 $SUDO systemctl stop docker.socket 2>/dev/null || true
   timeout 30 $SUDO systemctl stop docker 2>/dev/null || true
-  sleep 2
+  sleep 3
   
   # Use the new function to ensure processes are stopped
   ensure_docker_processes_stopped
@@ -1244,26 +1274,61 @@ downgrade_docker() {
   # Stop containerd to ensure clean slate
   echo "Restarting containerd for clean state..."
   timeout 30 $SUDO systemctl stop containerd 2>/dev/null || true
-  sleep 1
+  sleep 2
   if pgrep -x containerd >/dev/null 2>&1; then
     $SUDO pkill -9 containerd 2>/dev/null || true
-    sleep 1
+    sleep 2
   fi
   $SUDO systemctl start containerd 2>/dev/null || true
-  sleep 2
+  
+  # Wait for containerd to be fully ready before starting Docker
+  echo "Waiting for containerd to be fully ready..."
+  local containerd_ready=false
+  for i in {1..10}; do
+    if $SUDO systemctl is-active --quiet containerd 2>/dev/null; then
+      containerd_ready=true
+      echo "✓ containerd is ready"
+      break
+    fi
+    echo "  Waiting for containerd... ($i/10)"
+    sleep 1
+  done
+  
+  if [ "$containerd_ready" = false ]; then
+    echo "⚠ WARNING: containerd may not be fully ready, proceeding anyway..."
+  fi
   echo ""
 
   # Enable and start docker socket first, then service
   echo "Step 7.3: Enabling and starting Docker socket..."
   $SUDO systemctl enable docker.socket 2>/dev/null || true
   $SUDO systemctl start docker.socket
-  sleep 1
+  sleep 2
   echo ""
 
   echo "Step 7.4: Enabling and starting Docker service..."
   $SUDO systemctl enable docker
   $SUDO systemctl start docker
-  sleep 5  # Give Docker more time to fully initialize
+  
+  # Wait for Docker to be fully ready with active polling instead of fixed sleep
+  echo "Waiting for Docker to be fully ready..."
+  local docker_ready=false
+  for i in {1..15}; do
+    if $SUDO systemctl is-active --quiet docker 2>/dev/null; then
+      # Double-check that Docker is actually responding
+      if timeout 5 $SUDO docker info >/dev/null 2>&1; then
+        docker_ready=true
+        echo "✓ Docker is ready and responding"
+        break
+      fi
+    fi
+    echo "  Waiting for Docker... ($i/15)"
+    sleep 2
+  done
+  
+  if [ "$docker_ready" = false ]; then
+    echo "⚠ Docker may not be fully ready after 30 seconds..."
+  fi
   echo ""
   
   # Verify Docker is running
@@ -1573,7 +1638,7 @@ main() {
     case "$1" in
       apply-override|override)
         echo "=========================================="
-        echo "BigBear CasaOS Docker Version Fix Script 2025.11.1"
+        echo "BigBear CasaOS Docker Version Fix Script 2025.12.0"
         echo "=========================================="
         echo ""
         apply_docker_api_override
@@ -1581,7 +1646,7 @@ main() {
         ;;
       remove-override|no-override)
         echo "=========================================="
-        echo "BigBear CasaOS Docker Version Fix Script 2025.11.1"
+        echo "BigBear CasaOS Docker Version Fix Script 2025.12.0"
         echo "=========================================="
         echo ""
         remove_docker_api_override
@@ -1589,7 +1654,7 @@ main() {
         ;;
       help|--help|-h)
         echo "=========================================="
-        echo "BigBear CasaOS Docker Version Fix Script 2025.11.1"
+        echo "BigBear CasaOS Docker Version Fix Script 2025.12.0"
         echo "=========================================="
         echo ""
         show_usage
