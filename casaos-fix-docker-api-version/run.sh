@@ -59,7 +59,7 @@ print_info() {
 }
 
 echo "=========================================="
-echo "BigBear CasaOS Docker Version Fix Script 2025.11.1"
+echo "BigBear CasaOS Docker Version Fix Script 2025.12.0"
 echo "=========================================="
 echo ""
 echo "Here are some links:"
@@ -1638,7 +1638,7 @@ main() {
     case "$1" in
       apply-override|override)
         echo "=========================================="
-        echo "BigBear CasaOS Docker Version Fix Script 2025.11.1"
+        echo "BigBear CasaOS Docker Version Fix Script 2025.12.0"
         echo "=========================================="
         echo ""
         apply_docker_api_override
@@ -1646,7 +1646,7 @@ main() {
         ;;
       remove-override|no-override)
         echo "=========================================="
-        echo "BigBear CasaOS Docker Version Fix Script 2025.11.1"
+        echo "BigBear CasaOS Docker Version Fix Script 2025.12.0"
         echo "=========================================="
         echo ""
         remove_docker_api_override
@@ -1654,7 +1654,7 @@ main() {
         ;;
       help|--help|-h)
         echo "=========================================="
-        echo "BigBear CasaOS Docker Version Fix Script 2025.11.1"
+        echo "BigBear CasaOS Docker Version Fix Script 2025.12.0"
         echo "=========================================="
         echo ""
         show_usage
