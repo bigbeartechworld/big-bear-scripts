@@ -97,8 +97,10 @@ show_status() {
   local docker_version=$(get_docker_version)
   local api_version=$(get_docker_api_version)
   local dockerd_version=$(get_dockerd_binary_version)
-  local containerd_pkg=$(dpkg -l 2>/dev/null | grep containerd.io | awk 'NR==1 {print $3}')
-  local containerd_bin=$(containerd --version 2>/dev/null | awk '{print $3}')
+  local containerd_pkg
+  containerd_pkg=$(dpkg -l 2>/dev/null | grep containerd.io | awk 'NR==1 {print $3}')
+  local containerd_bin
+  containerd_bin=$(containerd --version 2>/dev/null | awk '{print $3}')
   
   echo "Docker daemon version:    $docker_version"
   echo "Docker API version:       $api_version"
@@ -425,8 +427,10 @@ test_fix_script() {
   local after_version=$(get_docker_version)
   local after_api=$(get_docker_api_version)
   local dockerd_binary=$(get_dockerd_binary_version)
-  local containerd_pkg=$(dpkg -l 2>/dev/null | grep containerd.io | awk 'NR==1 {print $3}')
-  local containerd_bin=$(containerd --version 2>/dev/null | awk '{print $3}')
+  local containerd_pkg
+  containerd_pkg=$(dpkg -l 2>/dev/null | grep containerd.io | awk 'NR==1 {print $3}')
+  local containerd_bin
+  containerd_bin=$(containerd --version 2>/dev/null | awk '{print $3}')
   
   echo "Docker version after fix:  $after_version"
   echo "API version after fix:     $after_api"
@@ -475,7 +479,7 @@ test_fix_script() {
     print_error "✗ containerd package is not 1.7.28 (got: ${containerd_pkg:-unknown})"
     success=false
   fi
-  if echo "$containerd_bin" | grep -q "^1.7.28"; then
+  if echo "$containerd_bin" | grep -q "^v\?1\.7\.28"; then
     print_success "✓ containerd binary is 1.7.28 (${containerd_bin})"
   else
     print_error "✗ containerd binary is not 1.7.28 (got: ${containerd_bin:-unknown})"

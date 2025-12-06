@@ -1368,7 +1368,8 @@ downgrade_docker() {
   
   # Verify containerd binary version after restart
   echo "Verifying containerd version..."
-  local containerd_version=$(timeout 5 containerd --version 2>/dev/null | head -n1 || echo "unknown")
+  local containerd_version
+  containerd_version=$(timeout 5 containerd --version 2>/dev/null | head -n1 || echo "unknown")
   echo "containerd binary: $containerd_version"
   echo ""
 
