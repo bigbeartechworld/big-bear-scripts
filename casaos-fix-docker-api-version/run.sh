@@ -59,7 +59,7 @@ print_info() {
 }
 
 echo "=========================================="
-echo "BigBear CasaOS Docker Version Fix Script 2025.12.0"
+echo "BigBear CasaOS Docker Version Fix Script 2025.12.1"
 echo "=========================================="
 echo ""
 echo "Here are some links:"
@@ -1110,7 +1110,7 @@ downgrade_docker() {
 
   # Hold Docker packages to prevent auto-upgrade
   echo "Configuring Docker packages to prevent auto-upgrade..."
-  $SUDO apt-mark unhold docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin 2>/dev/null || true
+  $SUDO apt-mark unhold docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker-ce-rootless-extras 2>/dev/null || true
   echo ""
 
   # Check if Docker is already installed and remove it to ensure clean downgrade
@@ -1124,7 +1124,7 @@ downgrade_docker() {
     timeout 30 $SUDO systemctl stop containerd 2>/dev/null || true
     sleep 2
     
-    $SUDO apt-get remove --purge -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin 2>/dev/null || true
+    $SUDO apt-get remove --purge -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker-ce-rootless-extras 2>/dev/null || true
     
     # Clean up unused dependencies
     echo "Cleaning up unused dependencies..."
@@ -1195,46 +1195,100 @@ downgrade_docker() {
   # Use timeout (10 minutes max for download/install)
   # Prevent services from starting during install to avoid hangs
   prevent_service_autostart
+  # Ensure we always restore policy-rc.d even on early return
+  trap "allow_service_autostart" RETURN
   
-  if ! timeout 600 $SUDO apt-get install -y --allow-downgrades \
-    docker-ce=${DOCKER_VERSION} \
-    docker-ce-cli=${DOCKER_VERSION} \
-    containerd.io=${CONTAINERD_FULL} \
-    docker-buildx-plugin \
-    docker-compose-plugin 2>&1 | tee /tmp/docker-install.log; then
-      allow_service_autostart
-      if [ ${PIPESTATUS[0]} -eq 124 ]; then
-        echo ""
-        echo "ERROR: Docker installation timed out after 10 minutes!"
-        echo "This usually means:"
-        echo "  - Very slow network connection"
-        echo "  - Repository mirror is overloaded or broken"
-        echo "  - Package download is stuck"
-        echo ""
-        echo "Suggestion: Try the override.conf method instead to keep your current Docker"
-      else
-        echo ""
-        echo "ERROR: Docker installation failed!"
-        echo "Please check your internet connection and try again."
-        echo ""
-        echo "Attempted to install:"
-        echo "  docker-ce=${DOCKER_VERSION}"
-        echo "  docker-ce-cli=${DOCKER_VERSION}"
-        echo "  containerd.io=${CONTAINERD_FULL}"
-        echo ""
-        echo "Installation log saved to: /tmp/docker-install.log"
-      fi
-      return 1
+  local install_attempt=1
+  local max_install_attempts=2
+  local apt_success=false
+  
+  while [ $install_attempt -le $max_install_attempts ]; do
+    echo "apt-get install attempt ${install_attempt}/${max_install_attempts}..."
+    if timeout 600 $SUDO apt-get install -y --allow-downgrades \
+      docker-ce=${DOCKER_VERSION} \
+      docker-ce-cli=${DOCKER_VERSION} \
+      containerd.io=${CONTAINERD_FULL} \
+      docker-buildx-plugin \
+      docker-compose-plugin 2>&1 | tee /tmp/docker-install.log; then
+      apt_success=true
+      break
+    fi
+
+    echo ""
+    echo "⚠ apt-get returned an error, verifying package installation..."
+
+    local docker_installed=false
+    local containerd_installed=false
+
+    # Check if docker-ce was installed with correct version
+    if dpkg -l docker-ce 2>/dev/null | grep -q "${DOCKER_VERSION}"; then
+      echo "✓ docker-ce ${DOCKER_VERSION} is installed"
+      docker_installed=true
+    fi
+
+    # Check if containerd.io was installed with correct version
+    if dpkg -l containerd.io 2>/dev/null | grep -q "${CONTAINERD_FULL}"; then
+      echo "✓ containerd.io ${CONTAINERD_FULL} is installed"
+      containerd_installed=true
+    fi
+
+    # If both packages are installed correctly, treat as success
+    if [ "$docker_installed" = true ] && [ "$containerd_installed" = true ]; then
+      echo ""
+      echo "✓ Packages were installed successfully despite apt-get warnings"
+      echo "This is usually due to non-critical post-install script issues"
+      echo ""
+      apt_success=true
+      break
+    fi
+
+    if [ $install_attempt -lt $max_install_attempts ]; then
+      echo "Retrying apt-get install in 5 seconds..."
+      sleep 5
+    fi
+    install_attempt=$((install_attempt + 1))
+  done
+
+  if [ "$apt_success" != true ]; then
+    # Actual installation failure
+    if [ ${PIPESTATUS[0]} -eq 124 ]; then
+      echo ""
+      echo "ERROR: Docker installation timed out after 10 minutes!"
+      echo "This usually means:"
+      echo "  - Very slow network connection"
+      echo "  - Repository mirror is overloaded or broken"
+      echo "  - Package download is stuck"
+      echo ""
+      echo "Suggestion: Try the override.conf method instead to keep your current Docker"
+    else
+      echo ""
+      echo "ERROR: Docker installation failed!"
+      echo "Please check your internet connection and try again."
+      echo ""
+      echo "Attempted to install:"
+      echo "  docker-ce=${DOCKER_VERSION}"
+      echo "  docker-ce-cli=${DOCKER_VERSION}"
+      echo "  containerd.io=${CONTAINERD_FULL}"
+      echo ""
+      echo "Installation log saved to: /tmp/docker-install.log"
+    fi
+    return 1
   fi
+  
+  echo ""
+  echo "✓ Package installation completed successfully"
+  echo "Now restoring service auto-start and configuring Docker..."
+  echo ""
   
   allow_service_autostart
   
   echo "✓ Successfully installed Docker 28.x (API 1.47/1.48)"
+  echo "✓ Service auto-start policy restored"
   echo ""
 
   # Hold packages to prevent auto-upgrade
   echo "Holding Docker packages at current version..."
-  $SUDO apt-mark hold docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  $SUDO apt-mark hold docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker-ce-rootless-extras
   echo ""
   
   # Verify the dockerd binary version before starting
@@ -1256,10 +1310,11 @@ downgrade_docker() {
   echo ""
 
   # Reload systemd and restart Docker service
-  echo "Reloading systemd daemon..."
+  echo "Step 7.0: Reloading systemd daemon..."
   $SUDO systemctl daemon-reload
   # Wait for systemd to fully process the reload
   sleep 2
+  echo "✓ Systemd daemon reloaded"
   echo ""
 
   # Ensure Docker is completely stopped before starting
@@ -1271,32 +1326,51 @@ downgrade_docker() {
   # Use the new function to ensure processes are stopped
   ensure_docker_processes_stopped
   
-  # Stop containerd to ensure clean slate
-  echo "Restarting containerd for clean state..."
+  # Stop containerd completely to ensure new version is loaded
+  echo "Step 7.2.1: Restarting containerd for clean state..."
+  echo "Stopping containerd service..."
   timeout 30 $SUDO systemctl stop containerd 2>/dev/null || true
   sleep 2
+  
+  # Kill any lingering containerd processes to ensure old binary is not running
   if pgrep -x containerd >/dev/null 2>&1; then
+    echo "Forcefully stopping lingering containerd processes (to load new version)..."
     $SUDO pkill -9 containerd 2>/dev/null || true
+    sleep 3
+  fi
+  
+  # Kill containerd-shim processes too
+  if pgrep containerd-shim >/dev/null 2>&1; then
+    echo "Stopping containerd-shim processes..."
+    $SUDO pkill -9 containerd-shim 2>/dev/null || true
     sleep 2
   fi
+  
+  echo "Starting containerd with new version..."
   $SUDO systemctl start containerd 2>/dev/null || true
   
   # Wait for containerd to be fully ready before starting Docker
   echo "Waiting for containerd to be fully ready..."
   local containerd_ready=false
-  for i in {1..10}; do
+  for i in {1..15}; do
     if $SUDO systemctl is-active --quiet containerd 2>/dev/null; then
       containerd_ready=true
       echo "✓ containerd is ready"
       break
     fi
-    echo "  Waiting for containerd... ($i/10)"
+    echo "  Waiting for containerd... ($i/15)"
     sleep 1
   done
   
   if [ "$containerd_ready" = false ]; then
     echo "⚠ WARNING: containerd may not be fully ready, proceeding anyway..."
   fi
+  
+  # Verify containerd binary version after restart
+  echo "Verifying containerd version..."
+  local containerd_version
+  containerd_version=$(timeout 5 containerd --version 2>/dev/null | head -n1 || echo "unknown")
+  echo "containerd binary: $containerd_version"
   echo ""
 
   # Enable and start docker socket first, then service
@@ -1338,10 +1412,10 @@ downgrade_docker() {
     echo "=========================================="
     echo ""
     echo "Checking Docker status and logs..."
-    timeout 10 $SUDO systemctl status docker --no-pager -l || true
+    timeout 10 $SUDO systemctl status docker --no-pager -l | tee -a /tmp/docker-install.log || true
     echo ""
     echo "Recent Docker logs:"
-    timeout 10 $SUDO journalctl -u docker --no-pager -n 50 || true
+    timeout 10 $SUDO journalctl -u docker --no-pager -n 50 | tee -a /tmp/docker-install.log || true
     echo ""
     
     # Attempt to detect and fix the error
@@ -1638,7 +1712,7 @@ main() {
     case "$1" in
       apply-override|override)
         echo "=========================================="
-        echo "BigBear CasaOS Docker Version Fix Script 2025.12.0"
+        echo "BigBear CasaOS Docker Version Fix Script 2025.12.1"
         echo "=========================================="
         echo ""
         apply_docker_api_override
@@ -1646,7 +1720,7 @@ main() {
         ;;
       remove-override|no-override)
         echo "=========================================="
-        echo "BigBear CasaOS Docker Version Fix Script 2025.12.0"
+        echo "BigBear CasaOS Docker Version Fix Script 2025.12.1"
         echo "=========================================="
         echo ""
         remove_docker_api_override
@@ -1654,7 +1728,7 @@ main() {
         ;;
       help|--help|-h)
         echo "=========================================="
-        echo "BigBear CasaOS Docker Version Fix Script 2025.12.0"
+        echo "BigBear CasaOS Docker Version Fix Script 2025.12.1"
         echo "=========================================="
         echo ""
         show_usage
@@ -2086,8 +2160,17 @@ main() {
   echo "Docker Configuration Complete!"
   echo "=========================================="
   echo ""
+
+  local containerd_pkg_version
+  containerd_pkg_version=$(dpkg -l containerd.io 2>/dev/null | awk 'NR>5 {print $3; exit}')
+  local containerd_bin_version
+  containerd_bin_version=$(timeout 5 containerd --version 2>/dev/null | head -n1)
+
   echo "Installed Docker Package Versions:"
   timeout 10 dpkg -l 2>/dev/null | grep -E "docker-ce|containerd.io" | awk '{print "  " $2 " = " $3}' || echo "Unable to query package versions"
+  echo ""
+  echo "Containerd Package Version: ${containerd_pkg_version:-unknown}"
+  echo "Containerd Binary Version: ${containerd_bin_version:-Unable to get containerd binary version}"
   echo ""
   echo "Docker Version Information:"
   timeout 10 $SUDO docker version 2>&1 || echo "Unable to get Docker version"
