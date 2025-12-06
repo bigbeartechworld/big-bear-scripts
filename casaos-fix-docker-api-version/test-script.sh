@@ -97,10 +97,14 @@ show_status() {
   local docker_version=$(get_docker_version)
   local api_version=$(get_docker_api_version)
   local dockerd_version=$(get_dockerd_binary_version)
+  local containerd_pkg=$(dpkg -l 2>/dev/null | grep containerd.io | awk 'NR==1 {print $3}')
+  local containerd_bin=$(containerd --version 2>/dev/null | awk '{print $3}')
   
   echo "Docker daemon version:    $docker_version"
   echo "Docker API version:       $api_version"
   echo "dockerd binary version:   $dockerd_version"
+  echo "containerd package:       ${containerd_pkg:-unknown}"
+  echo "containerd binary:        ${containerd_bin:-unknown}"
   echo ""
   
   # Show package versions
@@ -303,7 +307,7 @@ upgrade_docker_to_latest() {
   
   # Unhold packages if they're held
   print_info "Unholding Docker packages..."
-  $SUDO apt-mark unhold docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin 2>/dev/null || true
+  $SUDO apt-mark unhold docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker-ce-rootless-extras 2>/dev/null || true
   echo ""
   
   # Setup Docker repository if not already present
@@ -337,7 +341,8 @@ upgrade_docker_to_latest() {
     docker-ce-cli \
     containerd.io \
     docker-buildx-plugin \
-    docker-compose-plugin; then
+    docker-compose-plugin \
+    docker-ce-rootless-extras; then
     print_success "Docker upgraded to latest version"
   else
     print_error "Failed to upgrade Docker"
@@ -420,10 +425,14 @@ test_fix_script() {
   local after_version=$(get_docker_version)
   local after_api=$(get_docker_api_version)
   local dockerd_binary=$(get_dockerd_binary_version)
+  local containerd_pkg=$(dpkg -l 2>/dev/null | grep containerd.io | awk 'NR==1 {print $3}')
+  local containerd_bin=$(containerd --version 2>/dev/null | awk '{print $3}')
   
   echo "Docker version after fix:  $after_version"
   echo "API version after fix:     $after_api"
   echo "dockerd binary version:    $dockerd_binary"
+  echo "containerd package:        ${containerd_pkg:-unknown}"
+  echo "containerd binary:         ${containerd_bin:-unknown}"
   echo ""
   
   # Check package versions
@@ -456,6 +465,20 @@ test_fix_script() {
     print_success "✓ dockerd binary is version 28.x ($dockerd_binary)"
   else
     print_error "✗ dockerd binary is NOT 28.x (got: $dockerd_binary)"
+    success=false
+  fi
+
+  # Check containerd package/bin match expected 1.7.28
+  if echo "$containerd_pkg" | grep -q "1.7.28"; then
+    print_success "✓ containerd package is 1.7.28 (${containerd_pkg})"
+  else
+    print_error "✗ containerd package is not 1.7.28 (got: ${containerd_pkg:-unknown})"
+    success=false
+  fi
+  if echo "$containerd_bin" | grep -q "^1.7.28"; then
+    print_success "✓ containerd binary is 1.7.28 (${containerd_bin})"
+  else
+    print_error "✗ containerd binary is not 1.7.28 (got: ${containerd_bin:-unknown})"
     success=false
   fi
   
@@ -547,7 +570,7 @@ install_docker_version() {
   
   # Unhold packages if they're held
   print_info "Unholding Docker packages..."
-  $SUDO apt-mark unhold docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin 2>/dev/null || true
+  $SUDO apt-mark unhold docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker-ce-rootless-extras 2>/dev/null || true
   echo ""
   
   # Setup Docker repository if not already present
@@ -592,7 +615,8 @@ install_docker_version() {
     docker-ce-cli=$full_version \
     containerd.io \
     docker-buildx-plugin \
-    docker-compose-plugin; then
+    docker-compose-plugin \
+    docker-ce-rootless-extras; then
     print_success "Docker $version installed successfully"
   else
     print_error "Failed to install Docker $version"
