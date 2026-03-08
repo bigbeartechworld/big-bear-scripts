@@ -54,9 +54,9 @@ OPTIONS:
     --allowlist FILE    Path to allowlist file (default: .unicode-allowlist)
     --exclude-emojis    Exclude emoji characters and variation selectors (reduces false positives)
     --exclude-common    Exclude common Unicode typography: smart quotes, dashes,
-                        ellipsis, soft hyphen, superscripts, subscripts, Roman
-                        numerals (recommended for docs/markdown repos; note:
-                        also suppresses some AI-confusion and homograph checks)
+                        ellipsis, superscripts, subscripts, Roman numerals
+                        (recommended for docs/markdown repos; note: also
+                        suppresses some AI-confusion and homograph checks)
     --include-binary    Include binary files (archives, images, executables, etc.)
                         By default, only text files are scanned to avoid false positives
 
@@ -205,15 +205,15 @@ is_common_unicode() {
     [[ "$unicode_code" =~ ^203[9A]$ ]] && return 0
     # Per mille: U+2030
     [[ "$unicode_code" == "2030" ]] && return 0
-    # Soft Hyphen: U+00AD (invisible formatting hint, harmless in HTML/markdown)
-    [[ "$unicode_code" == "00AD" ]] && return 0
     # Superscript digits: U+00B2 (²), U+00B3 (³), U+00B9 (¹), U+2070-U+2079
     [[ "$unicode_code" =~ ^00B[239]$ ]] && return 0
     [[ "$unicode_code" =~ ^207[0-9]$ ]] && return 0
     # Subscript digits: U+2080-U+2084
     [[ "$unicode_code" =~ ^208[0-4]$ ]] && return 0
-    # Roman numerals: U+2160-U+217F (used in outlines, legal docs, lists)
-    [[ "$unicode_code" =~ ^21[67][0-9A-F]$ ]] && return 0
+    # Roman numerals: U+2160-U+217F, excluding Latin-lookalike confusables
+    # (U+2160 I, U+2165 VI, U+2169 X, U+2174 v, U+2179 x remain detectable)
+    [[ "$unicode_code" =~ ^21[67][0-9A-F]$ ]] && \
+        [[ ! "$unicode_code" =~ ^(2160|2165|2169|2174|2179)$ ]] && return 0
     return 1
 }
 
