@@ -54,8 +54,8 @@ OPTIONS:
     --allowlist FILE    Path to allowlist file (default: .unicode-allowlist)
     --exclude-emojis    Exclude emoji characters and variation selectors (reduces false positives)
     --exclude-common    Exclude common Unicode typography: smart quotes, dashes,
-                        ellipsis, superscripts, subscripts, Roman numerals,
-                        combining accents (recommended for docs/markdown repos)
+                        ellipsis, soft hyphen, superscripts, subscripts,
+                        Roman numerals (recommended for docs/markdown repos)
     --include-binary    Include binary files (archives, images, executables, etc.)
                         By default, only text files are scanned to avoid false positives
 
@@ -72,7 +72,7 @@ EXAMPLES:
     $0 --quiet --json ./app/ > results.json  # JSON output for CI
     $0 --severity critical,high ./        # Only show critical/high
     $0 --exclude-emojis ./ui/             # Skip emoji characters in UI code
-    $0 --exclude-common ./docs/           # Very permissive for documentation
+    $0 --exclude-common ./docs/           # Recommended for docs/markdown repos
     $0 --include-binary ./                # Scan all files including binaries
     $0 --allowlist .unicode-allowlist ./  # Use custom allowlist
 
@@ -644,7 +644,7 @@ load_allowlist
 # Show header unless in quiet or JSON mode
 if [ "$QUIET_MODE" = false ] && [ "$JSON_OUTPUT" = false ]; then
     echo -e "\033[1;35m╔══════════════════════════════════════════════════════════════╗\033[0m"
-    echo -e "\033[1;35m║         Big Bear Unicode Security Scanner v2.1.1 AI+         ║\033[0m"
+    echo -e "\033[1;35m║     Big Bear Unicode Security Scanner v${VERSION} AI+     ║\033[0m"
     echo -e "\033[1;35m║       Detecting dangerous Unicode & AI injection attacks      ║\033[0m"
     echo -e "\033[1;35m║                       Please support me!                     ║\033[0m"
     echo -e "\033[1;35m║               https://ko-fi.com/bigbeartechworld             ║\033[0m"
