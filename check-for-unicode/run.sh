@@ -54,7 +54,8 @@ OPTIONS:
     --allowlist FILE    Path to allowlist file (default: .unicode-allowlist)
     --exclude-emojis    Exclude emoji characters and variation selectors (reduces false positives)
     --exclude-common    Exclude common Unicode typography: smart quotes, dashes,
-                        ellipsis, superscripts, subscripts, Roman numerals
+                        ellipsis, common spaces, angle quotes, per mille,
+                        superscripts, subscripts, non-confusable Roman numerals
                         (recommended for docs/markdown repos; note: also
                         suppresses some AI-confusion and homograph checks)
     --include-binary    Include binary files (archives, images, executables, etc.)
@@ -206,6 +207,7 @@ is_common_unicode() {
     # Per mille: U+2030
     [[ "$unicode_code" == "2030" ]] && return 0
     # Superscript digits: U+00B2 (²), U+00B3 (³), U+00B9 (¹), U+2070-U+2079
+    # Note: ^207[0-9]$ also covers U+2071 (ⁱ) and U+2073 which are not in harmful_patterns
     [[ "$unicode_code" =~ ^00B[239]$ ]] && return 0
     [[ "$unicode_code" =~ ^207[0-9]$ ]] && return 0
     # Subscript digits: U+2080-U+2084
