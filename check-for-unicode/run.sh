@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 
-# Unicode Security Scanner v2025.11.0 AI+
+# Unicode Security Scanner v2026.03.0 AI+
 # Detects dangerous Unicode characters that can be used in security attacks
 # Including Trojan Source attacks (CVE-2021-42574) and other invisible characters
 
 # Script configuration
-VERSION="2025.11.0"
+VERSION="2026.03.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Command-line options (defaults)
@@ -53,7 +53,11 @@ OPTIONS:
                         (comma-separated, e.g., "critical,high")
     --allowlist FILE    Path to allowlist file (default: .unicode-allowlist)
     --exclude-emojis    Exclude emoji characters and variation selectors (reduces false positives)
-    --exclude-common    Exclude common Unicode like smart quotes, dashes (very permissive)
+    --exclude-common    Exclude common Unicode typography: smart quotes, dashes,
+                        ellipsis, common spaces, angle quotes, per mille,
+                        superscripts, subscripts, non-confusable Roman numerals
+                        (recommended for docs/markdown repos; note: also
+                        suppresses some AI-confusion and homograph checks)
     --include-binary    Include binary files (archives, images, executables, etc.)
                         By default, only text files are scanned to avoid false positives
 
@@ -70,7 +74,7 @@ EXAMPLES:
     $0 --quiet --json ./app/ > results.json  # JSON output for CI
     $0 --severity critical,high ./        # Only show critical/high
     $0 --exclude-emojis ./ui/             # Skip emoji characters in UI code
-    $0 --exclude-common ./docs/           # Very permissive for documentation
+    $0 --exclude-common ./docs/           # Recommended for docs/markdown repos
     $0 --include-binary ./                # Scan all files including binaries
     $0 --allowlist .unicode-allowlist ./  # Use custom allowlist
 
@@ -202,6 +206,17 @@ is_common_unicode() {
     [[ "$unicode_code" =~ ^203[9A]$ ]] && return 0
     # Per mille: U+2030
     [[ "$unicode_code" == "2030" ]] && return 0
+    # Superscript digits: U+00B2 (²), U+00B3 (³), U+00B9 (¹), U+2070-U+2079
+    # Note: ^207[0-9]$ also covers U+2071 (ⁱ) and U+2073 which are not in harmful_patterns
+    [[ "$unicode_code" =~ ^00B[239]$ ]] && return 0
+    [[ "$unicode_code" =~ ^207[0-9]$ ]] && return 0
+    # Subscript digits: U+2080-U+2089
+    # Note: ^208[0-9]$ also covers U+2085-U+2089 which are not currently in harmful_patterns
+    [[ "$unicode_code" =~ ^208[0-9]$ ]] && return 0
+    # Roman numerals: U+2160-U+217F, excluding Latin-lookalike confusables
+    # (U+2160 I, U+2165 VI, U+2169 X, U+2174 v, U+2179 x remain detectable)
+    [[ "$unicode_code" =~ ^21[67][0-9A-F]$ ]] && \
+        [[ ! "$unicode_code" =~ ^(2160|2165|2169|2174|2179)$ ]] && return 0
     return 1
 }
 
@@ -633,8 +648,8 @@ load_allowlist
 # Show header unless in quiet or JSON mode
 if [ "$QUIET_MODE" = false ] && [ "$JSON_OUTPUT" = false ]; then
     echo -e "\033[1;35m╔══════════════════════════════════════════════════════════════╗\033[0m"
-    echo -e "\033[1;35m║         Big Bear Unicode Security Scanner v2.1.1 AI+         ║\033[0m"
-    echo -e "\033[1;35m║       Detecting dangerous Unicode & AI injection attacks      ║\033[0m"
+    echo -e "\033[1;35m║       Big Bear Unicode Security Scanner v${VERSION} AI+       ║\033[0m"
+    echo -e "\033[1;35m║       Detecting dangerous Unicode & AI injection attacks     ║\033[0m"
     echo -e "\033[1;35m║                       Please support me!                     ║\033[0m"
     echo -e "\033[1;35m║               https://ko-fi.com/bigbeartechworld             ║\033[0m"
     echo -e "\033[1;35m║                           Thank you!                         ║\033[0m"
