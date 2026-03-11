@@ -211,6 +211,7 @@ is_common_unicode() {
     [[ "$unicode_code" =~ ^00B[239]$ ]] && return 0
     [[ "$unicode_code" =~ ^207[0-9]$ ]] && return 0
     # Subscript digits: U+2080-U+2089
+    # Note: ^208[0-9]$ also covers U+2085-U+2089 which are not currently in harmful_patterns
     [[ "$unicode_code" =~ ^208[0-9]$ ]] && return 0
     # Roman numerals: U+2160-U+217F, excluding Latin-lookalike confusables
     # (U+2160 I, U+2165 VI, U+2169 X, U+2174 v, U+2179 x remain detectable)
