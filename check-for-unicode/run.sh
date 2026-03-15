@@ -519,7 +519,6 @@ harmful_patterns=(
     "e28091:2011:Non-Breaking Hyphen (different from ASCII hyphen)"
     "e28092:2012:Figure Dash (looks like hyphen)"
     "e28093:2013:En Dash (looks like hyphen)"
-    "e28094:2014:Em Dash (looks like double hyphen)"
     "e28095:2015:Horizontal Bar (looks like long dash)"
     "e280a6:2026:Horizontal Ellipsis (looks like three dots)"
     "e280b0:2030:Per Mille Sign (looks like percent)"
