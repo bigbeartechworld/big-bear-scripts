@@ -11,13 +11,28 @@ log() {
 
 generate_key() {
     log "Generating key..."
-    docker exec -it $CONTAINER_ID php artisan key:generate --force
+    if ! docker exec -i $CONTAINER_ID php artisan key:generate --force; then
+        log "ERROR: Key generation failed. Aborting."
+        exit 1
+    fi
     log "Key generated successfully."
+}
+
+run_migrations() {
+    log "Running database migrations..."
+    if ! docker exec -i $CONTAINER_ID php artisan migrate --force; then
+        log "ERROR: Database migrations failed. Aborting."
+        exit 1
+    fi
+    log "Database migrations completed successfully."
 }
 
 optimize_cache() {
     log "Optimizing Laravel cache..."
-    docker exec -it $CONTAINER_ID php artisan optimize
+    if ! docker exec -i $CONTAINER_ID php artisan optimize; then
+        log "ERROR: Cache optimization failed. Aborting."
+        exit 1
+    fi
     log "Laravel cache optimized successfully."
 }
 
@@ -38,6 +53,7 @@ create_user() {
 main() {
     log "Starting script..."
     generate_key
+    run_migrations
     optimize_cache
     prompt_check_login
     create_user
