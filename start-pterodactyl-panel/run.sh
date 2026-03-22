@@ -11,7 +11,10 @@ log() {
 
 generate_key() {
     log "Generating key..."
-    docker exec -i $CONTAINER_ID php artisan key:generate --force
+    if ! docker exec -i $CONTAINER_ID php artisan key:generate --force; then
+        log "ERROR: Key generation failed. Aborting."
+        exit 1
+    fi
     log "Key generated successfully."
 }
 
@@ -26,7 +29,10 @@ run_migrations() {
 
 optimize_cache() {
     log "Optimizing Laravel cache..."
-    docker exec -i $CONTAINER_ID php artisan optimize
+    if ! docker exec -i $CONTAINER_ID php artisan optimize; then
+        log "ERROR: Cache optimization failed. Aborting."
+        exit 1
+    fi
     log "Laravel cache optimized successfully."
 }
 
