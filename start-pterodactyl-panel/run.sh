@@ -17,7 +17,10 @@ generate_key() {
 
 run_migrations() {
     log "Running database migrations..."
-    docker exec -it $CONTAINER_ID php artisan migrate --force
+    if ! docker exec -it $CONTAINER_ID php artisan migrate --force; then
+        log "ERROR: Database migrations failed. Aborting."
+        exit 1
+    fi
     log "Database migrations completed successfully."
 }
 
