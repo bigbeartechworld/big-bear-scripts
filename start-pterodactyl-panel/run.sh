@@ -2,6 +2,7 @@
 
 LOG_FILE="pterodactyl_panel_log.txt"
 CONTAINER_ID="pterodactyl-panel"
+DB_CONTAINER_ID="big-bear-pterodactyl-panel-database-1"
 
 log() {
     local message="$1"
@@ -27,6 +28,15 @@ optimize_cache() {
     log "Laravel cache optimized successfully."
 }
 
+fix_external_id() {
+    log "Fixing external_id column for MariaDB compatibility..."
+    if docker exec -i $DB_CONTAINER_ID mysql -u pterodactyl -pcasaos panel -e "ALTER TABLE users MODIFY external_id varchar(191) DEFAULT NULL;" 2>/dev/null; then
+        log "external_id column fixed successfully."
+    else
+        log "WARNING: Could not fix external_id column. User creation may fail."
+    fi
+}
+
 prompt_check_login() {
     echo "Please check your website URL to see if it shows the login." | tee -a $LOG_FILE
 }
@@ -45,6 +55,7 @@ main() {
     log "Starting script..."
     generate_key
     optimize_cache
+    fix_external_id
     prompt_check_login
     create_user
     log "Script finished."
