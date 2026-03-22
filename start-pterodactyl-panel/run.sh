@@ -11,13 +11,13 @@ log() {
 
 generate_key() {
     log "Generating key..."
-    docker exec -it $CONTAINER_ID php artisan key:generate --force
+    docker exec -i $CONTAINER_ID php artisan key:generate --force
     log "Key generated successfully."
 }
 
 run_migrations() {
     log "Running database migrations..."
-    if ! docker exec -it $CONTAINER_ID php artisan migrate --force; then
+    if ! docker exec -i $CONTAINER_ID php artisan migrate --force; then
         log "ERROR: Database migrations failed. Aborting."
         exit 1
     fi
@@ -26,7 +26,7 @@ run_migrations() {
 
 optimize_cache() {
     log "Optimizing Laravel cache..."
-    docker exec -it $CONTAINER_ID php artisan optimize
+    docker exec -i $CONTAINER_ID php artisan optimize
     log "Laravel cache optimized successfully."
 }
 
